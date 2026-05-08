@@ -26,7 +26,7 @@ export default function Login() {
     } else {
       // Login exitoso
       console.log('Usuario:', data.user)
-      navigate('/dashboard') // Redirigir según el rol
+      navigate('/') // Redirigir a Layout/Dashboard
     }
   }
 
