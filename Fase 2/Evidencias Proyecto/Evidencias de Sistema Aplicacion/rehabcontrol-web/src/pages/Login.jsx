@@ -30,11 +30,16 @@ export default function Login() {
 
         if (role && isAllowedRole(role)) {
           localStorage.setItem("authenticated", "true");
-          navigate("/", { replace: true });
+          // Redirigir según el rol
+          if (role === "admin") {
+            navigate("/admin", { replace: true });
+          } else {
+            navigate("/", { replace: true });
+          }
           return;
         }
 
-        // Si el rol no es permitido, cerramos la sesión y mostramos un mensaje
+        // Si el rol no es permitido, cerramos la sesión
         await supabase.auth.signOut();
         localStorage.removeItem("authenticated");
       } catch {
@@ -76,6 +81,12 @@ export default function Login() {
       const role = await getUserRole(session.user.id);
 
       if (!role || !isAllowedRole(role)) {
+        if (role === "paciente") {
+          await supabase.auth.signOut();
+          localStorage.removeItem("authenticated");
+          setMessage("Los pacientes deben usar la aplicación móvil.");
+          return;
+        }
         await supabase.auth.signOut();
         localStorage.removeItem("authenticated");
         setMessage("Tu usuario no tiene acceso a la web.");
@@ -83,7 +94,13 @@ export default function Login() {
       }
 
       localStorage.setItem("authenticated", "true");
-      navigate("/", { replace: true });
+      
+      // Redirigir según el rol
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch {
       setMessage("No fue posible iniciar sesión. Intenta nuevamente.");
     } finally {
