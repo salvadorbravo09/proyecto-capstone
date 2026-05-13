@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getUserRole, isAllowedRole } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { Activity, Mail, Lock, Loader2 } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -19,18 +20,15 @@ export default function Login() {
       const { data } = await supabase.auth.getSession();
       const session = data.session;
 
-      // Si el componente ya no está activo o no hay sesión, no hacemos nada
       if (!active || !session) {
         return;
       }
 
-      // Si hay sesión, verificamos el rol del usuario
       try {
         const role = await getUserRole(session.user.id);
 
         if (role && isAllowedRole(role)) {
           localStorage.setItem("authenticated", "true");
-          // Redirigir según el rol
           if (role === "admin") {
             navigate("/admin", { replace: true });
           } else {
@@ -39,7 +37,6 @@ export default function Login() {
           return;
         }
 
-        // Si el rol no es permitido, cerramos la sesión
         await supabase.auth.signOut();
         localStorage.removeItem("authenticated");
       } catch {
@@ -95,7 +92,6 @@ export default function Login() {
 
       localStorage.setItem("authenticated", "true");
       
-      // Redirigir según el rol
       if (role === "admin") {
         navigate("/admin", { replace: true });
       } else {
@@ -109,72 +105,111 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-[#2B6CB0] via-[#3182CE] to-white p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
+      {/* Decoración de fondo */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 size-80 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 size-80 rounded-full bg-cyan-500/10 blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative">
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Branding */}
-          <div className="text-center mb-8">
-            <h1 className="font-bold text-3xl text-[#2B6CB0] mb-2">
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl shadow-blue-900/20 overflow-hidden">
+          {/* Header con gradiente */}
+          <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-600 px-8 py-10 text-center">
+            <div className="inline-flex items-center justify-center size-16 rounded-2xl bg-white/20 backdrop-blur mb-4 shadow-lg">
+              <Activity className="size-8 text-white" />
+            </div>
+            <h1 className="font-bold text-3xl text-white tracking-tight">
               RehabControl
             </h1>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Acceso al panel web
-            </h1>
-            <p className="text-muted-foreground">Sistema de Gestión Clínica</p>
+            <p className="text-blue-100 mt-2 text-sm">
+              Sistema de Gestión Clínica
+            </p>
           </div>
 
-          {message ? (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {message}
+          {/* Formulario */}
+          <div className="px-8 py-8">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-semibold text-slate-800">
+                Iniciar Sesión
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Ingresa tus credenciales para continuar
+              </p>
             </div>
-          ) : null}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label
-                htmlFor="email"
-                className="text-sm font-medium text-slate-700"
+            {message ? (
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                <div className="size-2 rounded-full bg-red-500" />
+                {message}
+              </div>
+            ) : null}
+
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <label
+                  htmlFor="email"
+                  className="text-sm font-medium text-slate-700 flex items-center gap-2"
+                >
+                  <Mail className="size-4 text-blue-500" />
+                  Correo electrónico
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  className="h-12 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-slate-700 flex items-center gap-2"
+                >
+                  <Lock className="size-4 text-blue-500" />
+                  Contraseña
+                </label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  className="h-12 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-colors"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="h-12 w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition-all duration-200"
+                disabled={loading}
               >
-                Correo electrónico
-              </label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="correo@ejemplo.com"
-                required
-              />
-            </div>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Validando...
+                  </span>
+                ) : (
+                  "Iniciar Sesión"
+                )}
+              </Button>
+            </form>
+          </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="password"
-                className="text-sm font-medium text-slate-700"
-              >
-                Contraseña
-              </label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              className="h-11 w-full bg-[#2B6CB0] text-white hover:bg-[#245a94]"
-              disabled={loading}
-            >
-              {loading ? "Validando..." : "Iniciar sesión"}
-            </Button>
-          </form>
+          {/* Footer */}
+          <div className="px-8 py-4 bg-slate-50 text-center border-t border-slate-100">
+            <p className="text-xs text-slate-400">
+              © 2026 RehabControl. Todos los derechos reservados.
+            </p>
+          </div>
         </div>
       </div>
     </div>

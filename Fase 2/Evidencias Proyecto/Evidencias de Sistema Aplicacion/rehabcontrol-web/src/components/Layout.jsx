@@ -1,8 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { Home, Calendar, Users, LogOut, Bell } from "lucide-react";
+import { Home, Calendar, Users, LogOut, Bell, Activity } from "lucide-react";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function Layout() {
   const location = useLocation();
@@ -81,22 +83,71 @@ export default function Layout() {
   };
 
   const navItems = [
-    { to: "/", label: "Dashboard", icon: Home },
-    { to: "/agenda", label: "Agenda", icon: Calendar },
-    { to: "/pacientes", label: "Pacientes", icon: Users },
+    { 
+      to: "/", 
+      label: "Dashboard", 
+      icon: Home, 
+      color: "text-blue-500",
+      bgHover: "hover:bg-blue-50",
+      bgActive: "bg-blue-600"
+    },
+    { 
+      to: "/agenda", 
+      label: "Agenda", 
+      icon: Calendar, 
+      color: "text-emerald-500",
+      bgHover: "hover:bg-emerald-50",
+      bgActive: "bg-emerald-600"
+    },
+    { 
+      to: "/pacientes", 
+      label: "Pacientes", 
+      icon: Users, 
+      color: "text-purple-500",
+      bgHover: "hover:bg-purple-50",
+      bgActive: "bg-purple-600"
+    },
   ];
 
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const parts = name.split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
   return (
-    <div className="flex h-screen bg-background">
-      <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-        <div className="p-6 border-b border-sidebar-border">
-          <h1 className="font-semibold text-xl text-sidebar-primary">
-            RehabControl
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestión Clínica</p>
+    <div className="flex h-screen bg-slate-100">
+      {/* Sidebar */}
+      <aside className="w-72 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col shadow-2xl">
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-700/50">
+          <div className="flex items-center gap-3">
+            <div className="size-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg">
+              <Activity className="size-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-xl text-white tracking-tight">
+                RehabControl
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">Panel de Control</p>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        {/* Fecha actual */}
+        <div className="px-6 py-4 border-b border-slate-700/50">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Fecha</p>
+          <p className="text-sm text-slate-300 font-medium">
+            {format(new Date(), "EEE d, MMM yyyy", { locale: es })}
+          </p>
+        </div>
+
+        {/* Navegación */}
+        <nav className="flex-1 p-4 space-y-2">
+          <p className="text-xs text-slate-500 uppercase tracking-wider px-4 mb-3">Menú</p>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -106,80 +157,86 @@ export default function Layout() {
             return (
               <Link key={item.to} to={item.to}>
                 <div
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                      ? `${item.bgActive} text-white shadow-lg shadow-blue-900/20`
+                      : `text-slate-300 ${item.bgHover} hover:${item.color}`
                   }`}
                 >
-                  <Icon className="size-5" />
-                  <span>{item.label}</span>
+                  <Icon className={`size-5 ${isActive ? "text-white" : item.color}`} />
+                  <span className="font-medium">{item.label}</span>
                 </div>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
+        {/* Notificaciones */}
+        <div className="p-4 border-t border-slate-700/50">
           <Link to="/notificaciones">
             <div
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                 location.pathname === "/notificaciones"
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20"
+                  : "text-slate-300 hover:bg-slate-700/50"
               }`}
             >
               <div className="relative">
-                <Bell className="size-5" />
+                <Bell className={`size-5 ${location.pathname === "/notificaciones" ? "text-white" : "text-amber-400"}`} />
                 {notificacionesPendientes > 0 && (
-                  <span className="absolute -top-2 -right-2 size-5 bg-[#E53E3E] text-white text-xs rounded-full flex items-center justify-center font-medium">
+                  <span className="absolute -top-2 -right-2 size-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse shadow-lg">
                     {notificacionesPendientes > 9 ? "9+" : notificacionesPendientes}
                   </span>
                 )}
               </div>
-              <span>Notificaciones</span>
+              <span className="font-medium">Notificaciones</span>
             </div>
           </Link>
         </div>
 
-        <div className="p-4 border-t border-sidebar-border">
+        {/* Perfil de usuario */}
+        <div className="p-4 border-t border-slate-700/50">
           {loading ? (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-slate-500">
               Cargando...
             </div>
           ) : currentUser ? (
             <>
-              <div className="flex items-center gap-3 px-2 py-2 mb-2">
-                <div className="size-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-semibold">
-                  {currentUser.nombre_completo.charAt(0)}
+              <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-xl bg-slate-800/50">
+                <div className="size-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center font-bold text-white shadow-lg">
+                  {getInitials(currentUser.nombre_completo)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
+                  <p className="font-semibold text-sm text-white truncate">
                     {currentUser.nombre_completo}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="text-xs text-slate-400 truncate">
                     {currentUser.email}
                   </p>
+                  <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-300 rounded-full">
+                    {currentUser.rol === 'kinesiologo' ? 'Kinésico' : currentUser.rol}
+                  </span>
                 </div>
               </div>
               <Button
-                variant="outline"
-                className="w-full"
+                variant="ghost"
+                className="w-full justify-start text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                 onClick={handleLogout}
               >
-                <LogOut className="size-4" />
+                <LogOut className="size-4 mr-2" />
                 Cerrar sesión
               </Button>
             </>
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-slate-500">
               Sin sesión
             </div>
           )}
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      {/* Contenido principal */}
+      <main className="flex-1 overflow-auto bg-slate-100">
         <Outlet />
       </main>
     </div>
