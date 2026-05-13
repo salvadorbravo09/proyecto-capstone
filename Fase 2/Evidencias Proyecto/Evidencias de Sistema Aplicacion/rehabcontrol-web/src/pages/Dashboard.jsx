@@ -57,7 +57,7 @@ export default function Dashboard() {
           hora,
           estado,
           paciente:pacientes(nombre_completo),
-          kinesiologo:kinesiologos(nombre_completo)
+          kinesiologo:kinesiologos(nombre, apellido)
         `,
         )
         .gte("fecha", weekStart)
@@ -154,6 +154,14 @@ export default function Dashboard() {
     default: "#64748B",
   };
 
+  const formatKinesiologoNombre = (kinesiologo) => {
+    if (!kinesiologo) return "Kinesiólogo";
+    const nombre = kinesiologo.nombre || "";
+    const apellido = kinesiologo.apellido || "";
+    const fullName = `${nombre} ${apellido}`.trim();
+    return fullName || "Kinesiólogo";
+  };
+
   if (loading) {
     return (
       <div className="p-8 bg-slate-50 min-h-screen flex items-center justify-center">
@@ -218,7 +226,7 @@ export default function Dashboard() {
                         style={{
                           backgroundColor:
                             kinesiologoColors[
-                              cita.kinesiologo?.nombre_completo
+                              formatKinesiologoNombre(cita.kinesiologo)
                             ] || kinesiologoColors.default,
                         }}
                       />
@@ -228,7 +236,7 @@ export default function Dashboard() {
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {cita.hora?.substring(0, 5)} ·{" "}
-                          {cita.kinesiologo?.nombre_completo || "Kinesiólogo"}
+                          {formatKinesiologoNombre(cita.kinesiologo)}
                         </p>
                       </div>
                     </div>

@@ -41,7 +41,7 @@ export default function Pacientes() {
           fecha,
           hora,
           paciente_id,
-          kinesiologo:kinesiologos(nombre_completo)
+          kinesiologo:kinesiologos(nombre, apellido)
         `,
           )
           .order("fecha", { ascending: false }),
@@ -86,13 +86,16 @@ export default function Pacientes() {
     const pacienteCitas = citas.filter((c) => c.paciente_id === pacienteId);
     const cantidadCitas = pacienteCitas.length;
     const ultimaCita = pacienteCitas[0]?.fecha || null;
-    const kinesiologo = pacienteCitas[0]?.kinesiologo?.nombre_completo || null;
+    const kinesiologoNombre =
+      `${pacienteCitas[0]?.kinesiologo?.nombre || ""} ${
+        pacienteCitas[0]?.kinesiologo?.apellido || ""
+      }`.trim() || null;
 
     const fechaLimite = format(subDays(new Date(), 90), "yyyy-MM-dd");
     const estado =
       ultimaCita && ultimaCita >= fechaLimite ? "activo" : "inactivo";
 
-    return { cantidadCitas, ultimaCita, kinesiologo, estado };
+    return { cantidadCitas, ultimaCita, kinesiologo: kinesiologoNombre, estado };
   }
 
   const processedPacientes = pacientes.map((paciente) => ({

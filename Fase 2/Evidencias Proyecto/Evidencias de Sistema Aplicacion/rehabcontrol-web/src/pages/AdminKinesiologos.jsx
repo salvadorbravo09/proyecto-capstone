@@ -11,12 +11,16 @@ export default function AdminKinesiologos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
     email: "",
+    password: "",
     especialidad: "",
     registro_minsal: "",
+    telefono: "",
+    rut: "",
   });
 
   useEffect(() => {
@@ -28,7 +32,9 @@ export default function AdminKinesiologos() {
     try {
       const { data, error } = await supabase
         .from("kinesiologos")
-        .select("*")
+        .select(
+          "id, usuario_id, nombre, apellido, especialidad, registro_minsal, telefono, rut, usuarios:usuarios(email)",
+        )
         .order("nombre");
 
       if (error) throw error;
@@ -43,30 +49,28 @@ export default function AdminKinesiologos() {
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
+    setErrorMessage("");
 
     try {
-      // 1. Crear usuario en auth (invitar)
-      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-        formData.email,
-        { data: { rol: "kinesiologo" } }
+      const payload = {
+        nombre: formData.nombre.trim(),
+        apellido: formData.apellido.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password.trim(),
+        especialidad: formData.especialidad.trim(),
+        registro_minsal: formData.registro_minsal.trim(),
+        telefono: formData.telefono.trim(),
+        rut: formData.rut.trim(),
+      };
+
+      const { error } = await supabase.functions.invoke(
+        "create-kinesiologo",
+        {
+          body: payload,
+        },
       );
 
-      if (inviteError) throw inviteError;
-
-      const usuarioId = inviteData.user.id;
-
-      // 2. Crear registro en kinesiologos
-      const { error: kinError } = await supabase
-        .from("kinesiologos")
-        .insert([{
-          usuario_id: usuarioId,
-          nombre: formData.nombre,
-          apellido: formData.apellido,
-          especialidad: formData.especialidad,
-          registro_minsal: formData.registro_minsal,
-        }]);
-
-      if (kinError) throw kinError;
+      if (error) throw error;
 
       fetchKinesiologos();
       setShowModal(false);
@@ -74,12 +78,15 @@ export default function AdminKinesiologos() {
         nombre: "",
         apellido: "",
         email: "",
+        password: "",
         especialidad: "",
         registro_minsal: "",
+        telefono: "",
+        rut: "",
       });
     } catch (error) {
       console.error("Error creando kinesiólogo:", error);
-      alert("Error al crear kinesiólogo: " + error.message);
+      setErrorMessage(error.message || "No se pudo crear el kinesiólogo.");
     } finally {
       setSaving(false);
     }
@@ -88,7 +95,8 @@ export default function AdminKinesiologos() {
   const filteredKinesiologos = kinesiologos.filter(
     (k) =>
       (`${k.nombre || ''} ${k.apellido || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      k.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      k.usuarios?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      k.rut?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -108,7 +116,10 @@ export default function AdminKinesiologos() {
         </div>
         <Button
           className="bg-[#2B6CB0] hover:bg-[#2C5282]"
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setErrorMessage("");
+            setShowModal(true);
+          }}
         >
           <Plus className="size-4" />
           Nuevo kinesiólogo
@@ -134,13 +145,15 @@ export default function AdminKinesiologos() {
               <th className="text-left p-4 font-medium">Kinesiólogo</th>
               <th className="text-left p-4 font-medium">Especialidad</th>
               <th className="text-left p-4 font-medium">Registro MINSAL</th>
+              <th className="text-left p-4 font-medium">RUT</th>
+              <th className="text-left p-4 font-medium">Teléfono</th>
               <th className="text-left p-4 font-medium">Estado</th>
             </tr>
           </thead>
           <tbody>
             {filteredKinesiologos.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center py-12">
+                <td colSpan={6} className="text-center py-12">
                   <UserCog className="size-12 mx-auto mb-3 text-muted-foreground opacity-50" />
                   <p className="text-muted-foreground">No se encontraron kinesiólogos</p>
                 </td>
@@ -158,12 +171,14 @@ export default function AdminKinesiologos() {
                       </div>
                       <div>
                         <p className="font-medium">{k.nombre} {k.apellido}</p>
-                        <p className="text-sm text-muted-foreground">{k.email || '-'}</p>
+                        <p className="text-sm text-muted-foreground">{k.usuarios?.email || '-'}</p>
                       </div>
                     </div>
                   </td>
                   <td className="p-4">{k.especialidad || '-'}</td>
                   <td className="p-4">{k.registro_minsal || '-'}</td>
+                  <td className="p-4">{k.rut || '-'}</td>
+                  <td className="p-4">{k.telefono || '-'}</td>
                   <td className="p-4">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -184,9 +199,17 @@ export default function AdminKinesiologos() {
 
       <Modal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => {
+          setShowModal(false);
+          setErrorMessage("");
+        }}
         title="Nuevo kinesiólogo"
       >
+        {errorMessage ? (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {errorMessage}
+          </div>
+        ) : null}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
@@ -223,29 +246,65 @@ export default function AdminKinesiologos() {
               }
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Se enviará una invitación para crear contraseña
-            </p>
           </div>
           <div className="grid gap-2">
-            <label className="text-sm font-medium">Especialidad</label>
+            <label className="text-sm font-medium">Contraseña inicial *</label>
+            <Input
+              type="password"
+              placeholder="Mínimo 8 caracteres"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+              minLength={8}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Especialidad *</label>
             <Input
               placeholder="Ej: Fisioterapia"
               value={formData.especialidad}
               onChange={(e) =>
                 setFormData({ ...formData, especialidad: e.target.value })
               }
+              required
             />
           </div>
           <div className="grid gap-2">
-            <label className="text-sm font-medium">Registro MINSAL</label>
+            <label className="text-sm font-medium">Registro MINSAL *</label>
             <Input
               placeholder="Ej: REG-12345"
               value={formData.registro_minsal}
               onChange={(e) =>
                 setFormData({ ...formData, registro_minsal: e.target.value })
               }
+              required
             />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">RUT *</label>
+              <Input
+                placeholder="12.345.678-9"
+                value={formData.rut}
+                onChange={(e) =>
+                  setFormData({ ...formData, rut: e.target.value })
+                }
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Teléfono *</label>
+              <Input
+                placeholder="+56 9 1234 5678"
+                value={formData.telefono}
+                onChange={(e) =>
+                  setFormData({ ...formData, telefono: e.target.value })
+                }
+                required
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-4">
             <Button
