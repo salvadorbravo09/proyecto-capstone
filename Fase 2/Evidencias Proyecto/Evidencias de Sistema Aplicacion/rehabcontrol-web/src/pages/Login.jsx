@@ -29,14 +29,17 @@ export default function Login() {
         const role = await getUserRole(session.user.id);
 
         if (role && isAllowedRole(role)) {
+          localStorage.setItem("authenticated", "true");
           navigate("/", { replace: true });
           return;
         }
 
         // Si el rol no es permitido, cerramos la sesión y mostramos un mensaje
         await supabase.auth.signOut();
+        localStorage.removeItem("authenticated");
       } catch {
         await supabase.auth.signOut();
+        localStorage.removeItem("authenticated");
       }
     }
 
@@ -74,10 +77,12 @@ export default function Login() {
 
       if (!role || !isAllowedRole(role)) {
         await supabase.auth.signOut();
+        localStorage.removeItem("authenticated");
         setMessage("Tu usuario no tiene acceso a la web.");
         return;
       }
 
+      localStorage.setItem("authenticated", "true");
       navigate("/", { replace: true });
     } catch {
       setMessage("No fue posible iniciar sesión. Intenta nuevamente.");
@@ -87,7 +92,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#2B6CB0] via-[#3182CE] to-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-[#2B6CB0] via-[#3182CE] to-white p-4">
       <div className="w-full max-w-md">
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
