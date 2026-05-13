@@ -4,9 +4,8 @@ import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
 import { Search, Plus, User, Loader2 } from "lucide-react";
 import { Link } from "react-router";
-import { format, subDays } from "date-fns";
-import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
+import { format, subDays } from "date-fns";
 
 export default function Pacientes() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +21,7 @@ export default function Pacientes() {
     telefono: "",
     prevision: "",
     fecha_nacimiento: "",
+    email: "",
   });
 
   useEffect(() => {
@@ -77,6 +77,7 @@ export default function Pacientes() {
         telefono: "",
         prevision: "",
         fecha_nacimiento: "",
+        email: "",
       });
     }
     setSaving(false);
@@ -153,10 +154,10 @@ export default function Pacientes() {
             <tr>
               <th className="text-left p-4 font-medium">Paciente</th>
               <th className="text-left p-4 font-medium">RUT</th>
+              <th className="text-left p-4 font-medium">Email</th>
+              <th className="text-left p-4 font-medium">Estado</th>
               <th className="text-left p-4 font-medium">Kinesiólogo</th>
               <th className="text-left p-4 font-medium">N° Sesiones</th>
-              <th className="text-left p-4 font-medium">Última visita</th>
-              <th className="text-left p-4 font-medium">Estado</th>
               <th className="text-left p-4 font-medium"></th>
             </tr>
           </thead>
@@ -192,30 +193,20 @@ export default function Pacientes() {
                     </div>
                   </td>
                   <td className="p-4">{paciente.rut || "-"}</td>
-                  <td className="p-4">{paciente.kinesiologo || "-"}</td>
-                  <td className="p-4">{paciente.cantidadCitas}</td>
-                  <td className="p-4">
-                    {paciente.ultima_visita
-                      ? format(
-                          new Date(paciente.ultima_visita),
-                          "d 'de' MMM, yyyy",
-                          {
-                            locale: es,
-                          },
-                        )
-                      : "-"}
-                  </td>
+                  <td className="p-4">{paciente.email || "-"}</td>
                   <td className="p-4">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        paciente.estado === "activo"
+                        paciente.usuario_id
                           ? "bg-[#38A169] text-white"
-                          : "bg-muted text-muted-foreground"
+                          : "bg-amber-100 text-amber-800"
                       }`}
                     >
-                      {paciente.estado}
+                      {paciente.usuario_id ? "Registrado" : "Pendiente"}
                     </span>
                   </td>
+                  <td className="p-4">{paciente.kinesiologo || "-"}</td>
+                  <td className="p-4">{paciente.cantidadCitas}</td>
                   <td className="p-4">
                     <Link to={`/pacientes/${paciente.id}`}>
                       <Button variant="outline" size="sm">
@@ -277,6 +268,18 @@ export default function Pacientes() {
               onChange={(e) =>
                 setFormData({ ...formData, telefono: e.target.value })
               }
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Email *</label>
+            <Input
+              type="email"
+              placeholder="correo@ejemplo.com"
+              value={formData.email}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
+              required
             />
           </div>
           <div className="grid gap-2">

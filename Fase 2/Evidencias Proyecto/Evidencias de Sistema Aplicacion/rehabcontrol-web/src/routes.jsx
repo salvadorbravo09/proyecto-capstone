@@ -5,6 +5,7 @@ import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/Dashboard";
 import Agenda from "./pages/Agenda";
 import Pacientes from "./pages/Pacientes";
+import Notificaciones from "./pages/Notificaciones";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminKinesiologos from "./pages/AdminKinesiologos";
 
@@ -32,6 +33,10 @@ export const router = createBrowserRouter([
       {
         path: "pacientes",
         Component: Pacientes,
+      },
+      {
+        path: "notificaciones",
+        Component: Notificaciones,
       },
     ],
   },

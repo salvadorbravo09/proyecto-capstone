@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { Home, Calendar, Users, LogOut } from "lucide-react";
+import { Home, Calendar, Users, LogOut, Bell } from "lucide-react";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notificacionesPendientes, setNotificacionesPendientes] = useState(0);
 
   useEffect(() => {
     async function fetchUser() {
@@ -44,6 +45,26 @@ export default function Layout() {
       setLoading(false);
     }
     fetchUser();
+  }, []);
+
+  useEffect(() => {
+    async function fetchNotificaciones() {
+      try {
+        const { data, error } = await supabase
+          .from("notificaciones")
+          .select("id", { count: "exact", head: true })
+          .eq("confirmada", false);
+
+        if (!error && data !== null) {
+          setNotificacionesPendientes(typeof data === 'number' ? data : 0);
+        }
+      } catch (err) {
+        console.error("Error fetching notificaciones:", err);
+      }
+    }
+    fetchNotificaciones();
+    const interval = setInterval(fetchNotificaciones, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -98,6 +119,28 @@ export default function Layout() {
             );
           })}
         </nav>
+
+        <div className="p-4 border-t border-sidebar-border">
+          <Link to="/notificaciones">
+            <div
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                location.pathname === "/notificaciones"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent"
+              }`}
+            >
+              <div className="relative">
+                <Bell className="size-5" />
+                {notificacionesPendientes > 0 && (
+                  <span className="absolute -top-2 -right-2 size-5 bg-[#E53E3E] text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {notificacionesPendientes > 9 ? "9+" : notificacionesPendientes}
+                  </span>
+                )}
+              </div>
+              <span>Notificaciones</span>
+            </div>
+          </Link>
+        </div>
 
         <div className="p-4 border-t border-sidebar-border">
           {loading ? (
