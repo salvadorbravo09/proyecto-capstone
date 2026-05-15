@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><project name="RehabControl-V3-Scrum" company="" webLink="http://" view-date="2026-06-01" view-index="0" gantt-divider-location="518" resource-divider-location="300" version="3.3.3316" locale="es_ES">
+    <description/>
+    <view zooming-state="default:4" id="gantt-chart">
+        <field id="tpd3" name="Nombre" width="389" order="0"/>
+        <field id="tpd4" name="Fecha de inicio" width="27" order="1"/>
+        <field id="tpd5" name="Fecha de fin" width="86" order="2"/>
+        <field id="tpd15" name="Notas" width="20" order="3"/>
+        <option id="filter.completedTasks" value="false"/>
+        <option id="filter.dueTodayTasks" value="false"/>
+        <option id="filter.overdueTasks" value="false"/>
+        <option id="filter.inProgressTodayTasks" value="false"/>
+    </view>
+    <view id="resource-table">
+        <field id="0" name="Nombre" width="210" order="0"/>
+        <field id="1" name="Función" width="86" order="1"/>
+    </view>
+    <!-- -->
+    <calendars base-id="cl">
+        <day-types>
+            <day-type id="0"/>
+            <day-type id="1"/>
+            <default-week id="1" name="default" sun="1" mon="0" tue="0" wed="0" thu="0" fri="0" sat="1"/>
+            <only-show-weekends value="true"/>
+            <overriden-day-types/>
+            <days/>
+        </day-types>
+        <date year="" month="1" date="1" type="HOLIDAY"><![CDATA[New Year's Day]]></date>
+        <date year="" month="5" date="1" type="HOLIDAY"><![CDATA[Labour Day]]></date>
+        <date year="" month="5" date="21" type="HOLIDAY"><![CDATA[Navy Day]]></date>
+        <date year="" month="6" date="21" type="HOLIDAY"><![CDATA[Indigenous People's Day]]></date>
+        <date year="" month="7" date="16" type="HOLIDAY"><![CDATA[Our Lady of Mount Carmel]]></date>
+        <date year="" month="8" date="15" type="HOLIDAY"><![CDATA[Assumption Day]]></date>
+        <date year="" month="9" date="18" type="HOLIDAY"><![CDATA[Independence Day]]></date>
+        <date year="" month="9" date="19" type="HOLIDAY"><![CDATA[Army Day]]></date>
+        <date year="" month="10" date="31" type="HOLIDAY"><![CDATA[Reformation Day]]></date>
+        <date year="" month="11" date="1" type="HOLIDAY"><![CDATA[All Saints Day]]></date>
+        <date year="" month="12" date="8" type="HOLIDAY"><![CDATA[Immaculate Conception]]></date>
+        <date year="" month="12" date="25" type="HOLIDAY"><![CDATA[Christmas]]></date>
+        <date year="2025" month="4" date="18" type="HOLIDAY"><![CDATA[Good Friday]]></date>
+        <date year="2025" month="4" date="19" type="HOLIDAY"><![CDATA[Holy Saturday]]></date>
+        <date year="2025" month="6" date="30" type="HOLIDAY"><![CDATA[Saint Peter and Saint Paul]]></date>
+        <date year="2025" month="10" date="13" type="HOLIDAY"><![CDATA[Columbus Day]]></date>
+        <date year="2020" month="4" date="10" type="HOLIDAY"><![CDATA[Good Friday]]></date>
+        <date year="2020" month="4" date="11" type="HOLIDAY"><![CDATA[Holy Saturday]]></date>
+        <date year="2020" month="6" date="29" type="HOLIDAY"><![CDATA[Saint Peter and Saint Paul]]></date>
+        <date year="2020" month="10" date="12" type="HOLIDAY"><![CDATA[Columbus Day]]></date>
+        <date year="2019" month="4" date="19" type="HOLIDAY"><![CDATA[Good Friday]]></date>
+        <date year="2019" month="4" date="20" type="HOLIDAY"><![CDATA[Holy Saturday]]></date>
+        <date year="2019" month="7" date="1" type="HOLIDAY"><![CDATA[Saint Peter and Saint Paul]]></date>
+        <date year="2019" month="9" date="20" type="HOLIDAY"><![CDATA[National Day Holiday]]></date>
+        <date year="2019" month="10" date="14" type="HOLIDAY"><![CDATA[Columbus Day]]></date>
+    </calendars>
+    <tasks empty-milestones="true">
+        <taskproperties>
+            <taskproperty id="tpd0" name="type" type="default" valuetype="icon"/>
+            <taskproperty id="tpd1" name="priority" type="default" valuetype="icon"/>
+            <taskproperty id="tpd2" name="info" type="default" valuetype="icon"/>
+            <taskproperty id="tpd3" name="name" type="default" valuetype="text"/>
+            <taskproperty id="tpd4" name="begindate" type="default" valuetype="date"/>
+            <taskproperty id="tpd5" name="enddate" type="default" valuetype="date"/>
+            <taskproperty id="tpd6" name="duration" type="default" valuetype="int"/>
+            <taskproperty id="tpd7" name="completion" type="default" valuetype="int"/>
+            <taskproperty id="tpd8" name="coordinator" type="default" valuetype="text"/>
+            <taskproperty id="tpd9" name="predecessorsr" type="default" valuetype="text"/>
+        </taskproperties>
+        <task id="0" uid="0a2fe74f5fff48c1982b70866212df80" name="RehabControl" meeting="false" start="2026-03-09" duration="106" complete="0" expand="true">
+            <task id="1" uid="ffe419b4524945adb132544c4fffcad1" name="Planeacion" meeting="false" start="2026-03-09" duration="6" complete="0" expand="false">
+                <task id="2" uid="5c7e3106aeff406f8cb24a81f4815930" name="1.4 APT122_FormativaFase1" meeting="false" start="2026-03-09" duration="1" complete="0" expand="false"/>
+                <task id="3" uid="80d2b18520d9409caa6cd89e2568f357" name="1.5_GuiaEstudiante_Fase 1_Definicion Proyecto APT" meeting="false" start="2026-03-09" duration="1" complete="0" expand="true">
+                    <depend id="4" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="4" uid="692b66931eb848d385b0921e4302245c" name="01 Documento de visión y roles scrum" meeting="false" start="2026-03-10" duration="1" complete="0" expand="true">
+                    <depend id="23" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="23" uid="1c0b0645cb544fed9ecfec348562c7d9" name="02 Documento de Épicas e Historias de Usuario" meeting="false" start="2026-03-11" duration="1" complete="0" expand="true">
+                    <depend id="24" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="24" uid="60c5c0605cf94470baa8d02720e3dbe4" name="03 Plantilla Historias Usuario con instructivo" meeting="false" start="2026-03-12" duration="1" complete="0" expand="true">
+                    <depend id="25" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="25" uid="0b49aea09b624e83ae6ca95c17a04266" name="04 plantilla_product_backlog_puntos_historia" meeting="false" start="2026-03-13" duration="1" complete="0" expand="true">
+                    <depend id="26" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="26" uid="d454426fc0534d54add50f9916dd37fe" name="05 plantilla_sprint_backlog_actividades_horas" meeting="false" start="2026-03-14" duration="1" complete="0" expand="true"/>
+            </task>
+            <task id="5" uid="3052da3b67844ea3918a04d6eeb6dc6a" name="Preparación inicial" meeting="false" start="2026-03-16" duration="8" complete="0" expand="true">
+                <task id="6" uid="9ac5203f7ba24b65b18655d5d452b71d" name="Diseño y creacion de base de datos" meeting="false" start="2026-03-16" duration="1" complete="0" expand="true">
+                    <depend id="7" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="7" uid="d6568ea5cc0c42c19c7418e2c45fe58e" name="Creacion mockup" meeting="false" start="2026-03-17" duration="2" complete="0" expand="true">
+                    <depend id="27" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="27" uid="d91fa49cdffc493c81d4960cbcfc9395" name="Arquitectura de software" meeting="false" start="2026-03-19" duration="5" complete="0" expand="true"/>
+            </task>
+            <task id="8" uid="3488b482d78746b182c5158f0b9b9a9e" name="Sprint 1" meeting="false" start="2026-04-07" duration="18" complete="0" expand="true">
+                <depend id="11" type="2" difference="0" hardness="Strong"/>
+                <task id="9" uid="b5ce3a18ea3e4d869da17515d1a81253" name="02 Documento de Épicas e Historias de Usuario" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
+                <task id="54" uid="e5e58bb4a6b54d72a8c6f430b971c8fc" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
+                <task id="32" uid="688e6c356076482ab374a474696b6acd" name="05 plantilla_sprint_backlog_actividades_horas" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
+                <task id="61" uid="1478c363c47e40d88ec97b449efcf7a5" name="Diseñar modelo de datos" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
+                <task id="55" uid="71a36f9ca2c54e94b0afed2d2c75b0e2" name="Diseñar formulario de registro" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="56" uid="ec69d5117e5e43cb9c680a6f38c36c3e" name="Validar datos y guardar usuario" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="57" uid="e95545cea0b546e29009aadc7bd1b4aa" name="Implementar login" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="58" uid="3370d9ec0b0e4d36953866f2fbf55d38" name="Manejo de sesión y autenticación" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="59" uid="d43df07b039d45edad4d72ea9720351f" name="Enviar correo de recuperación" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="60" uid="ed9f0883296249078646e9c015a73b2a" name="Actualizar contraseña" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="62" uid="b4abb22ed39f4c0aa52165e8894c4157" name="CRUD de pacientes" meeting="false" start="2026-04-08" duration="17" complete="0" expand="true"/>
+                <task id="33" uid="344105a02dff47678f84170ba113d545" name="06_Registro Daily Standup" meeting="false" start="2026-04-23" duration="2" complete="0" expand="true"/>
+                <task id="34" uid="dc3a0fd93f8c4494917a2c1f6a79c014" name="07 plantilla_burndown_chart_Sprint_5_dias" meeting="false" start="2026-04-23" duration="2" complete="0" expand="true"/>
+                <task id="35" uid="1be61d843f4841a692fb22d86285ab7c" name="08 Documento validando Sprint Review" meeting="false" start="2026-04-23" duration="2" complete="0" expand="true"/>
+            </task>
+            <task id="11" uid="cc1febbf24294d9b83ce5b3524456d26" name="Sprint 2" meeting="false" start="2026-04-27" duration="11" complete="0" expand="true">
+                <depend id="14" type="2" difference="0" hardness="Strong"/>
+                <task id="36" uid="82c11ec2408b45ab8f0fbde15163e612" name="02 Documento de Épicas e Historias de Usuario" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
+                <task id="64" uid="b1d9e4e3d63c4016b6feaa3f66af88a9" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
+                <task id="38" uid="46118ca6204d46d1b202ad2bb9ac2d69" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
+                <task id="67" uid="513c7ee0a26b499ea3ccb616d74f7e6b" name="Creacion de citas" meeting="false" start="2026-04-28" duration="10" complete="0" expand="true"/>
+                <task id="68" uid="59f3b98f70a542d8a19f974498ea9a59" name="Cancelacion de citas" meeting="false" start="2026-04-28" duration="10" complete="0" expand="true"/>
+                <task id="65" uid="5361d1ab5e90426293256fab4fffd3c1" name="Gestion de citas" meeting="false" start="2026-04-28" duration="10" complete="0" expand="true"/>
+                <task id="66" uid="1bb63a9da8164c20a3ce3bb580aad727" name="Visualizacion de horario" meeting="false" start="2026-04-28" duration="10" complete="0" expand="true"/>
+                <task id="39" uid="9456139b4527465caebeabf6cd854f2f" name="06_Registro Daily Standup" color="#8cb6ce" meeting="false" start="2026-05-08" duration="1" complete="0" expand="true"/>
+                <task id="40" uid="1fbeff94d63e4630aef1c02f882a325b" name="07 plantilla_burndown_chart_Sprint_5_dias" color="#8cb6ce" meeting="false" start="2026-05-08" duration="1" complete="0" expand="true"/>
+                <task id="41" uid="fc60827905fa4b0985aa0a4a46bbbaf4" name="08 Documento validando Sprint Review" color="#8cb6ce" meeting="false" start="2026-05-08" duration="1" complete="0" expand="true"/>
+            </task>
+            <task id="14" uid="4a5c3b4ef3264342ad4a88dd5a646930" name="Sprint 3" meeting="false" start="2026-05-11" duration="11" complete="0" expand="true">
+                <depend id="17" type="2" difference="0" hardness="Strong"/>
+                <task id="42" uid="27d7396bcd034c8cb677e3a811c68dfa" name="02 Documento de Épicas e Historias de Usuario" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
+                <task id="70" uid="b50bc146b6a04e64bb7350021ec5e9e1" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
+                <task id="44" uid="cb20a755943d4f13bb6eddc0f6f8a0fc" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
+                <task id="76" uid="3dd67b9ee4eb427f8f398fe6a3116021" name="Listado y busqueda de pacientes" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="72" uid="e9d2b36436574f7fb296ce44245d0fe4" name="Registro evolucion clinica" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="71" uid="c4b7f5c9634b4123a5a77864f2dab86d" name="Registro evaluacion inicial" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="73" uid="d25ee8ce23dc4fa6ad5f5a1537a63c1f" name="Creacion historial clinico" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="74" uid="9eb83aae9ad345909999b9c7b7236820" name="Modificacion de pacientes" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="75" uid="188261997f984f75b5a8479ac22e482b" name="Desactivacion de pacientes" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
+                <task id="45" uid="f3985345391b4ccfbde2c774f495ce8e" name="06_Registro Daily Standup" color="#8cb6ce" meeting="false" start="2026-05-22" duration="1" complete="0" expand="true"/>
+                <task id="46" uid="72e1f418c6844a118fe71329dd38d5d7" name="07 plantilla_burndown_chart_Sprint_5_dias" color="#8cb6ce" meeting="false" start="2026-05-22" duration="1" complete="0" expand="true"/>
+                <task id="47" uid="b103d369389c42268439530b1807a161" name="08 Documento validando Sprint Review" color="#8cb6ce" meeting="false" start="2026-05-22" duration="1" complete="0" expand="true"/>
+            </task>
+            <task id="17" uid="b6d576e892f644058a1d7b0496221732" name="Sprint 4" meeting="false" start="2026-05-25" duration="12" complete="0" expand="true">
+                <depend id="20" type="2" difference="0" hardness="Strong"/>
+                <task id="48" uid="e52fd8b0ef34438ab534718e129d68cc" name="02 Documento de Épicas e Historias de Usuario" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
+                <task id="77" uid="230d725294754807bff3ddb8c49db218" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
+                <task id="50" uid="e6e86a8c2d3a4e978b50afc1bb2b0077" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
+                <task id="78" uid="a290f558b08f457d80e1cb6b731d8be8" name="Creacion ejercicios" meeting="false" start="2026-05-26" duration="11" complete="0" expand="true"/>
+                <task id="79" uid="110f0ca9ee9c4589bcf02d8fdca348af" name="Gestionar ejercicios" meeting="false" start="2026-05-26" duration="11" complete="0" expand="true"/>
+                <task id="80" uid="cb8287649037454da0ba67dfe416d4ef" name="Visualizar informacion paciente" meeting="false" start="2026-05-26" duration="11" complete="0" expand="true"/>
+                <task id="51" uid="ec5ed2a17f08414b88c3c1a88ee04cb8" name="06_Registro Daily Standup" color="#8cb6ce" meeting="false" start="2026-06-05" duration="1" complete="0" expand="true"/>
+                <task id="52" uid="7c9d780266b14f5cb7af5adab3b25948" name="07 plantilla_burndown_chart_Sprint_5_dias" color="#8cb6ce" meeting="false" start="2026-06-05" duration="1" complete="0" expand="true"/>
+                <task id="53" uid="a9ead769eff14cc298ae114e8b5717f8" name="08 Documento validando Sprint Review" color="#8cb6ce" meeting="false" start="2026-06-05" duration="1" complete="0" expand="true"/>
+            </task>
+            <task id="20" uid="70b8914013904eef87948b723e76087a" name="Sprint 5" meeting="false" start="2026-06-08" duration="12" complete="0" expand="true">
+                <depend id="91" type="2" difference="0" hardness="Strong"/>
+                <task id="82" uid="759c693b05a2483087b8c880b031de12" name="02 Documento de Épicas e Historias de Usuario" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
+                <task id="81" uid="c8618ebdb6084f1293e3a3ad9c31004f" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
+                <task id="83" uid="c0ecd64c2cac406099871bf6708bb3eb" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
+                <task id="90" uid="529ae2e0435b4d3385c6a42dd3c4bcea" name="Notificaciones de citas" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
+                <task id="89" uid="2559d1ee5d3f4bbcaba37cf35f6190fa" name="Creacion de registro escala de dolor" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
+                <task id="88" uid="2583434614824b549ee6e3c357532b23" name="Registro de cumplimiento ejercicios" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
+                <task id="87" uid="39aed4c8108f4f2a8258b34cc4fe71ed" name="Seguimiento paciente" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
+                <task id="21" uid="d21932e1cefd408580a32873dd070063" name="Ejecución de Pruebas de Integración" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
+                <task id="22" uid="43a573c8b7af42aa995a082fe3a7a783" name="Consolidación de Documentación y Preparación Defensa" meeting="false" start="2026-06-16" duration="3" complete="0" expand="true"/>
+                <task id="84" uid="7dbe94ac6b1342b0ad2442694c8e58c4" name="06_Registro Daily Standup" color="#8cb6ce" meeting="false" start="2026-06-19" duration="1" complete="0" expand="true"/>
+                <task id="85" uid="9855d69b82504f28a43c3e37a48c0c2a" name="07 plantilla_burndown_chart_Sprint_5_dias" color="#8cb6ce" meeting="false" start="2026-06-19" duration="1" complete="0" expand="true"/>
+                <task id="86" uid="6e7501f16730401881cd20d0c8d218f8" name="08 Documento validando Sprint Review" color="#8cb6ce" meeting="false" start="2026-06-19" duration="1" complete="0" expand="true"/>
+            </task>
+            <task id="91" uid="ba1bd24053874cafa12e5e966c430f5c" name="Cierre de proyecto" meeting="false" start="2026-06-22" duration="4" complete="0" expand="true">
+                <task id="93" uid="3ea4d3af97f740edba138c65807ca915" name="08 Documento validando Sprint Review" meeting="false" start="2026-06-22" duration="1" complete="0" expand="true">
+                    <depend id="92" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="92" uid="73e4e268db8f4216a55cd5545e20f899" name="09 Plantilla Resumen Reunion Retrospectiva" meeting="false" start="2026-06-23" duration="1" complete="0" expand="true">
+                    <depend id="94" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="94" uid="29172dc905644df493f9c917038b973f" name="10 Carta_de_Entrega_de_Productos" meeting="false" start="2026-06-24" duration="1" complete="0" expand="true">
+                    <depend id="108" type="2" difference="0" hardness="Strong"/>
+                </task>
+                <task id="108" uid="0ee8788af84f430c8f3ef4a546ed3026" name="11 Certificado de Aceptacion de Producto Final" meeting="false" start="2026-06-25" duration="1" complete="0" expand="true"/>
+            </task>
+        </task>
+    </tasks>
+    <resources/>
+    <allocations/>
+    <vacations/>
+    <previous/>
+    <roles roleset-name="Default"/>
+</project>
