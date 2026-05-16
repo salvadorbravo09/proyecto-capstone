@@ -1,4 +1,4 @@
-import React from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,32 +6,269 @@ import {
   StyleSheet,
   Pressable,
   Image,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Colors } from "@/constants/theme";
+import { supabase } from "@/lib/supabase";
+
+type Paciente = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  prevision: string | null;
+};
+
+type Cita = {
+  id: string;
+  fecha: string;
+  hora: string;
+  estado: string;
+  kinesiologo: { nombre: string; apellido: string }[] | null;
+};
+
+type Ejercicio = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  parte_cuerpo: string | null;
+  series: number;
+  repeticiones: number;
+  frecuencia_diaria: number;
+};
+
+type ProgresoRecord = {
+  id: string;
+  fecha_registro: string;
+  completado: boolean;
+  nivel_dolor: number | null;
+};
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [paciente, setPaciente] = useState<Paciente | null>(null);
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
+  const [progresoHoy, setProgresoHoy] = useState<ProgresoRecord | null>(null);
+  const [totalEjercicios, setTotalEjercicios] = useState(0);
+  const [completados, setCompletados] = useState(0);
+
+  async function fetchData() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: pacienteData } = await supabase
+        .from("pacientes")
+        .select("id, nombre, apellido, prevision")
+        .eq("usuario_id", user.id)
+        .single();
+
+      if (!pacienteData) return;
+      setPaciente(pacienteData);
+
+      const today = new Date().toISOString().split("T")[0];
+      const weekEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+
+      const [citasRes, planRes, progresoRes] = await Promise.all([
+        supabase
+          .from("citas")
+          .select("id, fecha, hora, estado, kinesiologo:kinesiologos(nombre, apellido)")
+          .eq("paciente_id", pacienteData.id)
+          .gte("fecha", today)
+          .lte("fecha", weekEnd)
+          .order("fecha", { ascending: true })
+          .order("hora", { ascending: true }),
+        supabase
+          .from("planes_tratamiento")
+          .select(
+            `id, plan_detalle!inner(
+              id,
+              series,
+              repeticiones,
+              frecuencia_diaria,
+              ejercicio:ejercicios(id, nombre, descripcion, parte_cuerpo)
+            )`
+          )
+          .eq("paciente_id", pacienteData.id)
+          .eq("estado", "activo"),
+        supabase
+          .from("seguimiento_progreso")
+          .select("id, fecha_registro, completado, nivel_dolor")
+          .eq("plan_detalle_id", "")
+          .gte("fecha_registro", today)
+          .limit(1),
+      ]);
+
+      setCitas(citasRes.data || []);
+
+      const ejerciciosList: Ejercicio[] = [];
+      let total = 0;
+      let completadosCount = 0;
+
+      if (planRes.data) {
+        for (const plan of planRes.data) {
+          if (plan.plan_detalle) {
+            for (const detalle of plan.plan_detalle) {
+              const ejercicio = Array.isArray(detalle.ejercicio)
+                ? detalle.ejercicio[0]
+                : detalle.ejercicio;
+
+              if (ejercicio) {
+                ejerciciosList.push({
+                  id: ejercicio.id,
+                  nombre: ejercicio.nombre,
+                  descripcion: ejercicio.descripcion,
+                  parte_cuerpo: ejercicio.parte_cuerpo,
+                  series: detalle.series,
+                  repeticiones: detalle.repeticiones,
+                  frecuencia_diaria: detalle.frecuencia_diaria,
+                });
+                total++;
+
+                const { data: progData } = await supabase
+                  .from("seguimiento_progreso")
+                  .select("id, fecha_registro, completado, nivel_dolor")
+                  .eq("plan_detalle_id", detalle.id)
+                  .gte("fecha_registro", today)
+                  .limit(1);
+
+                if (progData && progData.length > 0 && progData[0].completado) {
+                  completadosCount++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      setEjercicios(ejerciciosList);
+      setTotalEjercicios(total);
+      setCompletados(completadosCount);
+    } catch (error) {
+      console.error("Error fetching home data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      "Cerrar sesión",
+      "¿Estás seguro de que deseas cerrar sesión?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cerrar sesión",
+          style: "destructive",
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace("/(auth)/login");
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSeguimiento = () => {
+    router.push("/(main)/progress");
+  };
+
+  const getNombre = () => {
+    if (!paciente) return "Paciente";
+    return paciente.nombre || "Paciente";
+  };
+
+  const formatFecha = (fecha: string) => {
+    const date = new Date(fecha + "T00:00:00");
+    const options: Intl.DateTimeFormatOptions = {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    };
+    return date.toLocaleDateString("es-CL", options);
+  };
+
+  const formatHora = (hora: string) => {
+    return hora.substring(0, 5);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0a7ea4" />
+      </View>
+    );
+  }
+
+  const progressPercent = totalEjercicios > 0 ? Math.round((completados / totalEjercicios) * 100) : 0;
+
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
-          <Text style={styles.greeting}>Bienvenido de nuevo, Alex!</Text>
-          <Text style={styles.subtitle}>Continuemos tu recuperación</Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.greeting}>
+                Hola, {getNombre()}!
+              </Text>
+              <Text style={styles.subtitle}>Continuemos tu recuperación</Text>
+            </View>
+            <Pressable onPress={handleLogout} style={styles.logoutButton}>
+              <Ionicons name="log-out-outline" size={24} color="#666" />
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>12/15</Text>
-            <Text style={styles.progressSubtitle}>Ejercicios Completados</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBar}>
-              <View style={styles.progressFill} />
+        {totalEjercicios > 0 && (
+          <View style={styles.progressCard}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressTitle}>
+                {completados}/{totalEjercicios}
+              </Text>
+              <Text style={styles.progressSubtitle}>
+                Ejercicios Completados
+              </Text>
             </View>
-            <Text style={styles.progressPercent}>78%</Text>
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[styles.progressFill, { width: `${progressPercent}%` }]}
+                />
+              </View>
+              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+            </View>
+            <Text style={styles.progressLabel}>Progreso de Recuperación</Text>
           </View>
-          <Text style={styles.progressLabel}>Progreso de Recuperación</Text>
-        </View>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -41,83 +278,83 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.appointmentCard}>
-            <View style={styles.doctorAvatar}>
-              <Ionicons name="person" size={24} color="#0a7ea4" />
+          {citas.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="calendar-outline" size={32} color="#ccc" />
+              <Text style={styles.emptyText}>No hay citas próximas</Text>
             </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.doctorName}>Dra. Sarah Johnson</Text>
-              <Text style={styles.doctorSpecialty}>Fisioterapeuta</Text>
-              <View style={styles.appointmentTime}>
-                <Ionicons name="calendar-outline" size={14} color="#666" />
-                <Text style={styles.appointmentDateText}>22 Abr 2026 a las 2:00 PM</Text>
+          ) : (
+            citas.slice(0, 3).map((cita) => (
+              <View key={cita.id} style={styles.appointmentCard}>
+                <View style={styles.doctorAvatar}>
+                  <Ionicons name="person" size={24} color="#0a7ea4" />
+                </View>
+                <View style={styles.appointmentInfo}>
+                  <Text style={styles.doctorName}>
+                    {cita.kinesiologo && cita.kinesiologo.length > 0
+                      ? `${cita.kinesiologo[0].nombre} ${cita.kinesiologo[0].apellido}`
+                      : "Kinesiólogo"}
+                  </Text>
+                  <Text style={styles.doctorSpecialty}>
+                    {cita.estado}
+                  </Text>
+                  <View style={styles.appointmentTime}>
+                    <Ionicons name="calendar-outline" size={14} color="#666" />
+                    <Text style={styles.appointmentDateText}>
+                      {formatFecha(cita.fecha)} a las {formatHora(cita.hora)}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
-
-          <View style={styles.appointmentCard}>
-            <View style={styles.doctorAvatar}>
-              <Ionicons name="person" size={24} color="#0a7ea4" />
-            </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.doctorName}>Dr. Michael Chen</Text>
-              <Text style={styles.doctorSpecialty}>Medicina Deportiva</Text>
-              <View style={styles.appointmentTime}>
-                <Ionicons name="calendar-outline" size={14} color="#666" />
-                <Text style={styles.appointmentDateText}>25 Abr 2026 a las 10:30 AM</Text>
-              </View>
-            </View>
-          </View>
+            ))
+          )}
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ejercicios de Hoy</Text>
-            <Pressable>
+            <Pressable onPress={() => router.push("/(main)/exercises")}>
               <Text style={styles.viewAll}>Ver todo</Text>
             </Pressable>
           </View>
 
-          <View style={styles.exerciseCard}>
-            <View style={styles.exerciseIcon}>
-              <Ionicons name="fitness" size={20} color="#0a7ea4" />
+          {ejercicios.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="fitness-outline" size={32} color="#ccc" />
+              <Text style={styles.emptyText}>
+                No tienes ejercicios asignados
+              </Text>
             </View>
-            <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>Estiramiento de Flexión de Rodilla</Text>
-              <Text style={styles.exerciseDuration}>10 min</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </View>
-
-          <View style={styles.exerciseCard}>
-            <View style={styles.exerciseIcon}>
-              <Ionicons name="fitness" size={20} color="#0a7ea4" />
-            </View>
-            <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>Fortalecimiento de Cadera</Text>
-              <Text style={styles.exerciseDuration}>15 min</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </View>
-
-          <View style={styles.exerciseCard}>
-            <View style={styles.exerciseIcon}>
-              <Ionicons name="fitness" size={20} color="#0a7ea4" />
-            </View>
-            <View style={styles.exerciseInfo}>
-              <Text style={styles.exerciseName}>Entrenamiento de Equilibrio</Text>
-              <Text style={styles.exerciseDuration}>12 min</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </View>
+          ) : (
+            ejercicios.slice(0, 3).map((ejercicio) => (
+              <Pressable
+                key={ejercicio.id}
+                style={styles.exerciseCard}
+                onPress={() => router.push("/(main)/exercises")}
+              >
+                <View style={styles.exerciseIcon}>
+                  <Ionicons name="fitness" size={20} color="#0a7ea4" />
+                </View>
+                <View style={styles.exerciseInfo}>
+                  <Text style={styles.exerciseName}>{ejercicio.nombre}</Text>
+                  <Text style={styles.exerciseDuration}>
+                    {ejercicio.series} series × {ejercicio.repeticiones} reps
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </Pressable>
+            ))
+          )}
         </View>
 
-        <Pressable style={styles.trackButton}>
+        <Pressable style={styles.trackButton} onPress={handleSeguimiento}>
           <View style={styles.trackButtonContent}>
             <Ionicons name="analytics-outline" size={24} color="white" />
             <Text style={styles.trackButtonText}>Seguimiento de Hoy</Text>
           </View>
-          <Text style={styles.trackButtonSubtext}>Registra tu nivel de dolor y movilidad</Text>
+          <Text style={styles.trackButtonSubtext}>
+            Registra tu nivel de dolor y movilidad
+          </Text>
         </Pressable>
 
         <View style={styles.bottomPadding} />
@@ -131,11 +368,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f7fa",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f7fa",
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: Colors.light.background,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   greeting: {
     fontSize: 28,
@@ -146,6 +394,9 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: "#666",
+  },
+  logoutButton: {
+    padding: 8,
   },
   progressCard: {
     backgroundColor: "white",
@@ -187,7 +438,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: {
-    width: "78%",
     height: "100%",
     backgroundColor: "#0a7ea4",
     borderRadius: 4,
@@ -221,6 +471,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#0a7ea4",
     fontWeight: "500",
+  },
+  emptyCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 8,
   },
   appointmentCard: {
     backgroundColor: "white",
