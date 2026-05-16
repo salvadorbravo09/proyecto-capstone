@@ -29,21 +29,41 @@ export default function Layout() {
         .eq("id", user.id)
         .single();
 
+      let nombreCompleto = user.email.split("@")[0];
+      let rol = "paciente";
+
       if (usuario) {
-        setCurrentUser({
-          id: usuario.id,
-          email: user.email,
-          nombre_completo: usuario.nombre_completo || user.email.split("@")[0],
-          rol: usuario.rol,
-        });
-      } else {
-        setCurrentUser({
-          id: user.id,
-          email: user.email,
-          nombre_completo: user.email.split("@")[0],
-          rol: "paciente",
-        });
+        rol = usuario.rol;
+
+        if (usuario.rol === "kinesiologo") {
+          const { data: kinData } = await supabase
+            .from("kinesiologos")
+            .select("nombre, apellido")
+            .eq("usuario_id", user.id)
+            .single();
+          if (kinData) {
+            nombreCompleto = `${kinData.nombre} ${kinData.apellido}`.trim();
+          }
+        } else if (usuario.rol === "admin") {
+          nombreCompleto = "Administrador";
+        } else if (usuario.rol === "paciente") {
+          const { data: pacData } = await supabase
+            .from("pacientes")
+            .select("nombre, apellido")
+            .eq("usuario_id", user.id)
+            .single();
+          if (pacData) {
+            nombreCompleto = `${pacData.nombre || ''} ${pacData.apellido || ''}`.trim();
+          }
+        }
       }
+
+      setCurrentUser({
+        id: usuario?.id || user.id,
+        email: user.email,
+        nombre_completo: nombreCompleto,
+        rol,
+      });
       setLoading(false);
     }
     fetchUser();

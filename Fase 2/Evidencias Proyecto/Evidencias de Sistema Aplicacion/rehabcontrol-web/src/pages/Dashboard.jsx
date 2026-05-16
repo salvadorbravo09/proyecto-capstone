@@ -25,6 +25,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { getUserRole } from "@/lib/auth";
 
 export default function Dashboard() {
   const today = new Date();
@@ -34,10 +35,31 @@ export default function Dashboard() {
   const [pacientesActivos, setPacientesActivos] = useState(0);
   const [inasistencias, setInasistencias] = useState(0);
   const [ocupacionData, setOcupacionData] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+  const [kinesiologoId, setKinesiologoId] = useState(null);
 
   async function fetchDashboardData() {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const role = await getUserRole(user.id);
+      setUserRole(role);
+
+      let kinId = null;
+      if (role === "kinesiologo") {
+        const { data: kinData } = await supabase
+          .from("kinesiologos")
+          .select("id")
+          .eq("usuario_id", user.id)
+          .single();
+        if (kinData) {
+          kinId = kinData.id;
+          setKinesiologoId(kinId);
+        }
+      }
+
       const todayStr = format(today, "yyyy-MM-dd");
       const weekStart = format(
         startOfWeek(today, { weekStartsOn: 1 }),
@@ -48,7 +70,7 @@ export default function Dashboard() {
         "yyyy-MM-dd",
       );
 
-      const { data: citasData } = await supabase
+      let citasQuery = supabase
         .from("citas")
         .select(
           `
@@ -56,7 +78,7 @@ export default function Dashboard() {
           fecha,
           hora,
           estado,
-          paciente:pacientes(nombre_completo),
+          paciente:pacientes(nombre, apellido),
           kinesiologo:kinesiologos(nombre, apellido)
         `,
         )
@@ -64,6 +86,12 @@ export default function Dashboard() {
         .lte("fecha", weekEnd)
         .order("fecha", { ascending: true })
         .order("hora", { ascending: true });
+
+      if (role === "kinesiologo" && kinId) {
+        citasQuery = citasQuery.eq("kinesiologo_id", kinId);
+      }
+
+      const { data: citasData } = await citasQuery;
 
       if (citasData) {
         const hoy = citasData.filter((c) => c.fecha === todayStr);
@@ -104,10 +132,15 @@ export default function Dashboard() {
         setInasistencias(inasistenciasCount);
       }
 
-      const { count: pacientesCount } = await supabase
+      let pacientesQuery = supabase
         .from("pacientes")
         .select("*", { count: "exact", head: true });
 
+      if (role === "kinesiologo" && kinId) {
+        pacientesQuery = pacientesQuery.eq("kinesiologo_asignado_id", kinId);
+      }
+
+      const { count: pacientesCount } = await pacientesQuery;
       setPacientesActivos(pacientesCount || 0);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -232,7 +265,7 @@ export default function Dashboard() {
                       />
                       <div>
                         <p className="font-medium">
-                          {cita.paciente?.nombre_completo || "Paciente"}
+                          {`${cita.paciente?.nombre || ''} ${cita.paciente?.apellido || ''}`.trim() || "Paciente"}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {cita.hora?.substring(0, 5)} ·{" "}
@@ -277,7 +310,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">
-                          {cita.paciente?.nombre_completo || "Paciente"}
+                          {`${cita.paciente?.nombre || ''} ${cita.paciente?.apellido || ''}`.trim() || "Paciente"}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(cita.fecha), "EEE d", {
