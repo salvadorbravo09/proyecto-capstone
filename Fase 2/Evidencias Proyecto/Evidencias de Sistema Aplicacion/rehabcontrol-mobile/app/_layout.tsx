@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { supabase } from '@/lib/supabase';
 
 export const unstable_settings = {
   initialRouteName: '(auth)/login',
@@ -11,6 +13,53 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    async function checkSession() {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('rol')
+          .eq('id', data.session.user.id)
+          .single();
+
+        if (usuario?.rol === 'paciente') {
+          router.replace('/(main)/home');
+        } else {
+          await supabase.auth.signOut();
+        }
+      }
+      setChecking(false);
+    }
+
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        supabase
+          .from('usuarios')
+          .select('rol')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: usuario }) => {
+            if (usuario?.rol === 'paciente') {
+              router.replace('/(main)/home');
+            }
+          });
+      }
+    });
+
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (checking) {
+    return null;
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

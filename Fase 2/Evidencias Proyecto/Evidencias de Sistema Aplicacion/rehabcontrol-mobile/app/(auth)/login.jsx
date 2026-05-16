@@ -9,18 +9,77 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 
 import { useRouter } from "expo-router";
 import { Colors } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = () => {
-    router.replace("/(main)/home");
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Ingresa tu correo y contraseña.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      });
+
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          Alert.alert("Error", "Correo o contraseña inválidos.");
+        } else {
+          Alert.alert("Error", error.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (!data.session) {
+        Alert.alert("Error", "No se pudo crear la sesión.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: usuario, error: roleError } = await supabase
+        .from("usuarios")
+        .select("rol")
+        .eq("id", data.session.user.id)
+        .single();
+
+      if (roleError || !usuario) {
+        Alert.alert("Error", "No se pudo verificar tu usuario.");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      if (usuario.rol !== "paciente") {
+        Alert.alert("Acceso denegado", "Los kinesiólogos y administradores deben usar la aplicación web.");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      router.replace("/(main)/home");
+    } catch (err) {
+      Alert.alert("Error", "No fue posible iniciar sesión. Intenta nuevamente.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,17 +128,24 @@ export default function Login() {
               onChangeText={setPassword}
               style={styles.input}
               placeholderTextColor="#999"
+              onSubmitEditing={handleLogin}
             />
           </View>
 
           <Pressable
             onPress={handleLogin}
+            disabled={loading}
             style={({ pressed }) => [
               styles.button,
-              pressed && styles.buttonPressed,
+              pressed && !loading && styles.buttonPressed,
+              loading && styles.buttonDisabled,
             ]}
           >
-            <Text style={styles.buttonText}>Ingresar</Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>Ingresar</Text>
+            )}
           </Pressable>
         </View>
       </ScrollView>
@@ -176,6 +242,9 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     backgroundColor: "#085a7a",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: "white",
