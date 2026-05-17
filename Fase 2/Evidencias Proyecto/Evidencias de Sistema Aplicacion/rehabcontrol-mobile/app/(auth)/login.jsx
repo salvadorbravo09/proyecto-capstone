@@ -20,8 +20,32 @@ import { supabase } from "../../lib/supabase";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [authMode, setAuthMode] = useState("login"); // 'login', 'requestOtp', 'verifyOtp', 'createPassword'
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const checkRoleAndRedirect = async (userId) => {
+    const { data: usuario, error: roleError } = await supabase
+      .from("usuarios")
+      .select("rol")
+      .eq("id", userId)
+      .single();
+
+    if (roleError || !usuario) {
+      Alert.alert("Error", "No se pudo verificar tu usuario.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    if (usuario.rol !== "paciente") {
+      Alert.alert("Acceso denegado", "Los kinesiólogos y administradores deben usar la aplicación web.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    router.replace("/(main)/home");
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -53,29 +77,90 @@ export default function Login() {
         return;
       }
 
-      const { data: usuario, error: roleError } = await supabase
-        .from("usuarios")
-        .select("rol")
-        .eq("id", data.session.user.id)
-        .single();
-
-      if (roleError || !usuario) {
-        Alert.alert("Error", "No se pudo verificar tu usuario.");
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
-      }
-
-      if (usuario.rol !== "paciente") {
-        Alert.alert("Acceso denegado", "Los kinesiólogos y administradores deben usar la aplicación web.");
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
-      }
-
-      router.replace("/(main)/home");
+      await checkRoleAndRedirect(data.session.user.id);
     } catch (err) {
       Alert.alert("Error", "No fue posible iniciar sesión. Intenta nuevamente.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    if (!email.trim()) {
+      Alert.alert("Error", "Ingresa tu correo electrónico.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+      });
+
+      if (error) throw error;
+      
+      Alert.alert("Código enviado", "Revisa tu correo por el código de acceso.");
+      setAuthMode("verifyOtp");
+    } catch(err) {
+      Alert.alert("Error", "No se pudo enviar el código. Verifica el correo.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim()) {
+      Alert.alert("Error", "Ingresa el código que recibiste por correo.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otp.trim(),
+        type: "email"
+      });
+
+      if (error) throw error;
+      
+      if (data.session) {
+        setAuthMode("createPassword");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Código inválido o expirado.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreatePassword = async () => {
+    if (password.length < 8) {
+      Alert.alert("Error", "La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.updateUser({ 
+        password: password.trim() 
+      });
+
+      if (error) throw error;
+
+      Alert.alert("Éxito", "Contraseña creada exitosamente.");
+      
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        await checkRoleAndRedirect(sessionData.session.user.id);
+      } else {
+        setAuthMode("login");
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo actualizar la contraseña.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -103,37 +188,85 @@ export default function Login() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.welcomeText}>Bienvenido</Text>
-          <Text style={styles.instructionText}>Ingresa tus credenciales para continuar</Text>
+          <Text style={styles.welcomeText}>
+            {authMode === "createPassword" ? "Crea tu contraseña" 
+             : authMode === "verifyOtp" ? "Verifica tu correo"
+             : "Bienvenido"}
+          </Text>
+          <Text style={styles.instructionText}>
+            {authMode === "createPassword" ? "Ingresa una contraseña segura para tu cuenta" 
+             : authMode === "verifyOtp" ? "Ingresa el código que enviamos a tu correo"
+             : authMode === "requestOtp" ? "Te enviaremos un código para acceder por primera vez"
+             : "Ingresa tus credenciales para continuar"}
+          </Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Correo electrónico</Text>
-            <TextInput
-              placeholder="correo@ejemplo.com"
-              value={email}
-              onChangeText={setEmail}
-              style={styles.input}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholderTextColor="#999"
-            />
-          </View>
+          {['login', 'requestOtp'].includes(authMode) && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Correo electrónico</Text>
+              <TextInput
+                placeholder="correo@ejemplo.com"
+                value={email}
+                onChangeText={setEmail}
+                style={styles.input}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholderTextColor="#999"
+              />
+            </View>
+          )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput
-              placeholder="••••••••"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              style={styles.input}
-              placeholderTextColor="#999"
-              onSubmitEditing={handleLogin}
-            />
-          </View>
+          {authMode === "login" && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Contraseña</Text>
+              <TextInput
+                placeholder="••••••••"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                style={styles.input}
+                placeholderTextColor="#999"
+                onSubmitEditing={handleLogin}
+              />
+            </View>
+          )}
+
+          {authMode === "verifyOtp" && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Código de acceso</Text>
+              <TextInput
+                placeholder="Ingresa tu código"
+                value={otp}
+                onChangeText={setOtp}
+                style={styles.input}
+                keyboardType="number-pad"
+                placeholderTextColor="#999"
+                onSubmitEditing={handleVerifyOtp}
+              />
+            </View>
+          )}
+
+          {authMode === "createPassword" && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nueva contraseña</Text>
+              <TextInput
+                placeholder="••••••••"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                style={styles.input}
+                placeholderTextColor="#999"
+                onSubmitEditing={handleCreatePassword}
+              />
+            </View>
+          )}
 
           <Pressable
-            onPress={handleLogin}
+            onPress={
+              authMode === "login" ? handleLogin
+              : authMode === "requestOtp" ? handleRequestOtp
+              : authMode === "verifyOtp" ? handleVerifyOtp
+              : handleCreatePassword
+            }
             disabled={loading}
             style={({ pressed }) => [
               styles.button,
@@ -144,9 +277,32 @@ export default function Login() {
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.buttonText}>Ingresar</Text>
+              <Text style={styles.buttonText}>
+                {authMode === "login" ? "Ingresar"
+                 : authMode === "requestOtp" ? "Enviar código"
+                 : authMode === "verifyOtp" ? "Verificar"
+                 : "Guardar contraseña"}
+              </Text>
             )}
           </Pressable>
+
+          {authMode === "login" && (
+            <Pressable onPress={() => setAuthMode("requestOtp")} style={styles.linkContainer}>
+              <Text style={styles.linkText}>¿Primera vez? Obtener código de acceso</Text>
+            </Pressable>
+          )}
+
+          {authMode === "requestOtp" && (
+            <Pressable onPress={() => setAuthMode("login")} style={styles.linkContainer}>
+              <Text style={styles.linkText}>Ya tengo cuenta, iniciar sesión</Text>
+            </Pressable>
+          )}
+
+          {authMode === "verifyOtp" && (
+            <Pressable onPress={() => setAuthMode("requestOtp")} style={styles.linkContainer}>
+              <Text style={styles.linkText}>Reenviar código</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -252,4 +408,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  linkContainer: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  linkText: {
+    color: "#0a7ea4",
+    fontSize: 14,
+    fontWeight: "600",
+  }
 });

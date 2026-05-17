@@ -37,18 +37,9 @@ export default function RootLayout() {
 
     checkSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        supabase
-          .from('usuarios')
-          .select('rol')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: usuario }) => {
-            if (usuario?.rol === 'paciente') {
-              router.replace('/(main)/home');
-            }
-          });
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        router.replace('/(auth)/login');
       }
     });
 

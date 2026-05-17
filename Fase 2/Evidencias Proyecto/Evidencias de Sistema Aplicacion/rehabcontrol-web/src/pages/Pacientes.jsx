@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
-import { Search, Plus, User, Loader2, Copy, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, User, Loader2, Copy } from "lucide-react";
 import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { format, subDays } from "date-fns";
@@ -19,7 +19,6 @@ export default function Pacientes() {
   const [kinesiologoId, setKinesiologoId] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -28,7 +27,6 @@ export default function Pacientes() {
     prevision: "",
     fecha_nacimiento: "",
     email: "",
-    password: "",
   });
 
   useEffect(() => {
@@ -108,7 +106,6 @@ export default function Pacientes() {
         nombre: formData.nombre.trim(),
         apellido: formData.apellido.trim(),
         email: formData.email.trim().toLowerCase(),
-        password: formData.password.trim(),
         rut: formData.rut.trim() || null,
         telefono: formData.telefono.trim() || null,
         prevision: formData.prevision.trim() || null,
@@ -139,7 +136,6 @@ export default function Pacientes() {
         prevision: "",
         fecha_nacimiento: "",
         email: "",
-        password: "",
       });
       fetchData();
     } catch (error) {
@@ -313,12 +309,12 @@ export default function Pacientes() {
                 Paciente creado exitosamente
               </p>
               <p className="text-sm text-muted-foreground mb-3">
-                Comparte estas credenciales con el paciente para que acceda a la app móvil:
+                El paciente ahora puede ingresar a la aplicación móvil usando su correo electrónico para recibir un código de acceso:
               </p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border">
                   <div>
-                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="text-xs text-muted-foreground">Email de acceso</p>
                     <p className="text-sm font-mono">{createdCredentials.email}</p>
                   </div>
                   <Button
@@ -403,33 +399,6 @@ export default function Pacientes() {
                   }
                   required
                 />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Contraseña inicial *</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 8 caracteres"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    minLength={8}
-                    required
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </button>
-                </div>
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Previsión</label>

@@ -5,7 +5,6 @@ type CreatePacientePayload = {
   nombre: string;
   apellido: string;
   email: string;
-  password: string;
   rut?: string | null;
   telefono?: string | null;
   prevision?: string | null;
@@ -78,13 +77,12 @@ Deno.serve(async (req) => {
   const nombre = payload.nombre?.trim();
   const apellido = payload.apellido?.trim();
   const email = payload.email?.trim().toLowerCase();
-  const password = payload.password?.trim();
   const rut = payload.rut?.trim();
   const telefono = payload.telefono?.trim();
   const prevision = payload.prevision?.trim();
   const fechaNacimiento = payload.fecha_nacimiento?.trim();
 
-  if (!nombre || !apellido || !email || !password) {
+  if (!nombre || !apellido || !email) {
     return jsonResponse(400, { error: "Missing required fields." });
   }
 
@@ -111,7 +109,6 @@ Deno.serve(async (req) => {
   const { data: authData, error: authError } =
     await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
       email_confirm: true,
       user_metadata: { rol: "paciente" },
     });
