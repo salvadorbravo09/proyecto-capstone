@@ -220,58 +220,66 @@ export default function Login() {
     }
   };
 
-  const handleCreatePassword = async () => {
-    if (password.length < 8) {
-      Alert.alert(
-        "Error",
-        "La contraseña debe tener al menos 8 caracteres."
+const handleCreatePassword = async () => {
+  if (password.length < 8) {
+    Alert.alert(
+      "Error",
+      "La contraseña debe tener al menos 8 caracteres."
+    );
+
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    Alert.alert(
+      "Error",
+      "Las contraseñas no coinciden."
+    );
+
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const { error } =
+      await supabase.auth.updateUser({
+        password: password.trim(),
+      });
+
+    if (error) throw error;
+
+    Alert.alert(
+      "Éxito",
+      "Tu contraseña fue actualizada correctamente."
+    );
+
+    // Mantener comportamiento original:
+    // usuario queda autenticado automáticamente
+
+    const { data: sessionData } =
+      await supabase.auth.getSession();
+
+    if (sessionData.session) {
+      await checkRoleAndRedirect(
+        sessionData.session.user.id
       );
-
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert(
-        "Error",
-        "Las contraseñas no coinciden."
-      );
-
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const { error } =
-        await supabase.auth.updateUser({
-          password: password.trim(),
-        });
-
-      if (error) throw error;
-
-      Alert.alert(
-        "Éxito",
-        "Tu contraseña fue actualizada correctamente."
-      );
-
-      setPassword("");
-      setConfirmPassword("");
-      setOtp("");
-
+    } else {
       setAuthMode("login");
-
-    } catch (err) {
-      Alert.alert(
-        "Error",
-        "No se pudo actualizar la contraseña."
-      );
-
-      console.error(err);
-
-    } finally {
-      setLoading(false);
     }
-  };
+
+  } catch (err) {
+    Alert.alert(
+      "Error",
+      "No se pudo actualizar la contraseña."
+    );
+
+    console.error(err);
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   // RECUPERAR CONTRASEÑA
 
