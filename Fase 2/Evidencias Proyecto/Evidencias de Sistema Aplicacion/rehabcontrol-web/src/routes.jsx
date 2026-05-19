@@ -8,6 +8,8 @@ import Pacientes from "./pages/Pacientes";
 import Notificaciones from "./pages/Notificaciones";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminKinesiologos from "./pages/AdminKinesiologos";
+import AdminPacientes from "./pages/AdminPacientes";
+import AdminCitas from "./pages/AdminCitas";
 
 export const router = createBrowserRouter([
   {
@@ -54,11 +56,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "pacientes",
-        element: <div className="p-8"><h1>Pacientes Admin</h1></div>,
+        Component: AdminPacientes,
       },
       {
         path: "citas",
-        element: <div className="p-8"><h1>Citas Admin</h1></div>,
+        Component: AdminCitas,
       },
       {
         path: "configuracion",
