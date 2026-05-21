@@ -1,63 +1,159 @@
-import { useMemo, useState } from "react";
-import { Search, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Search, Users } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { supabase } from "@/lib/supabase";
 
-const pacientesMock = [
-  {
-    id: 1,
-    nombre: "Camila Torres",
-    rut: "18.234.567-8",
-    kinesiologo: "Valentina Rojas",
-    fechaRegistro: "18 may 2026",
-  },
-  {
-    id: 2,
-    nombre: "Javier Muñoz",
-    rut: "15.678.901-2",
-    kinesiologo: "Diego Pérez",
-    fechaRegistro: "12 may 2026",
-  },
-  {
-    id: 3,
-    nombre: "Andrea Soto",
-    rut: "17.456.789-0",
-    kinesiologo: "Fernanda López",
-    fechaRegistro: "Hoy",
-  },
-  {
-    id: 4,
-    nombre: "Rodrigo Salazar",
-    rut: "14.908.776-5",
-    kinesiologo: "Camila Vega",
-    fechaRegistro: "02 may 2026",
-  },
-  {
-    id: 5,
-    nombre: "Valeria Díaz",
-    rut: "19.001.223-4",
-    kinesiologo: "Martín Herrera",
-    fechaRegistro: "16 may 2026",
-  },
-];
+function formatRegistrationDate(createdAt) {
+  if (!createdAt) {
+    return "-";
+  }
+
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return "Hoy";
+  }
+
+  return new Intl.DateTimeFormat("es-CL", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatFullName(paciente) {
+  const nombre = [paciente.nombre, paciente.apellido]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (nombre) {
+    return nombre;
+  }
+
+  if (paciente.nombre_completo) {
+    return paciente.nombre_completo;
+  }
+
+  return "Sin nombre";
+}
+
+function formatKinesiologo(kinesiologo) {
+  if (!kinesiologo) {
+    return "Sin asignar";
+  }
+
+  return (
+    [kinesiologo.nombre, kinesiologo.apellido]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || "Sin asignar"
+  );
+}
 
 export default function AdminPacientes() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [pacientes, setPacientes] = useState([]);
+
+  useEffect(() => {
+    fetchPacientes();
+  }, []);
+
+  async function fetchPacientes() {
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const { data, error } = await supabase
+        .from("pacientes")
+        .select("*, usuarios:usuarios(created_at)")
+        .order("rut", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      const patients = data || [];
+      const assignedKinesiologoIds = [
+        ...new Set(
+          patients
+            .map((paciente) => paciente.kinesiologo_asignado_id)
+            .filter(Boolean),
+        ),
+      ];
+
+      let kinesiologosById = new Map();
+
+      if (assignedKinesiologoIds.length > 0) {
+        const { data: kinesiologosData, error: kinError } = await supabase
+          .from("kinesiologos")
+          .select("*")
+          .in("id", assignedKinesiologoIds);
+
+        if (kinError) {
+          throw kinError;
+        }
+
+        kinesiologosById = new Map(
+          (kinesiologosData || []).map((kinesiologo) => [
+            kinesiologo.id,
+            kinesiologo,
+          ]),
+        );
+      }
+
+      setPacientes(
+        patients.map((paciente) => ({
+          ...paciente,
+          kinesiologo: formatKinesiologo(
+            kinesiologosById.get(paciente.kinesiologo_asignado_id),
+          ),
+          fechaRegistro: formatRegistrationDate(
+            paciente.usuarios?.created_at || null,
+          ),
+          nombreCompleto: formatFullName(paciente),
+        })),
+      );
+    } catch (error) {
+      console.error("Error fetching pacientes:", error);
+      setErrorMessage(
+        error?.message || "No se pudieron cargar los pacientes desde Supabase.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const pacientesFiltrados = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
     if (!query) {
-      return pacientesMock;
+      return pacientes;
     }
 
-    return pacientesMock.filter((paciente) => {
-      return [paciente.nombre, paciente.rut, paciente.kinesiologo]
+    return pacientes.filter((paciente) => {
+      return [paciente.nombreCompleto, paciente.rut, paciente.kinesiologo]
         .join(" ")
         .toLowerCase()
         .includes(query);
     });
-  }, [searchTerm]);
+  }, [pacientes, searchTerm]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-100 items-center justify-center p-8">
+        <Loader2 className="size-8 animate-spin text-[#2B6CB0]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -84,6 +180,12 @@ export default function AdminPacientes() {
           />
         </div>
       </div>
+
+      {errorMessage ? (
+        <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {errorMessage}
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-4">
@@ -122,11 +224,11 @@ export default function AdminPacientes() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex size-11 items-center justify-center rounded-full bg-linear-to-br from-cyan-500 to-blue-600 font-semibold text-white shadow-sm">
-                        {paciente.nombre.charAt(0)}
+                        {paciente.nombreCompleto.charAt(0)}
                       </div>
                       <div>
                         <p className="font-medium text-slate-900">
-                          {paciente.nombre}
+                          {paciente.nombreCompleto}
                         </p>
                         <p className="text-sm text-slate-500">
                           Registro clínico
