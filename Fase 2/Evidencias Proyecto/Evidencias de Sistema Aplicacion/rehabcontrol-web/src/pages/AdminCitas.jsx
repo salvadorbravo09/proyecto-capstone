@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Search,
@@ -52,6 +52,18 @@ const labelsFiltros = {
   cancelada: "Canceladas",
 };
 
+function formatFullName(persona) {
+  if (!persona) {
+    return "";
+  }
+
+  if (persona.nombre_completo) {
+    return persona.nombre_completo;
+  }
+
+  return [persona.nombre, persona.apellido].filter(Boolean).join(" ").trim();
+}
+
 export default function AdminCitas() {
   const [citas, setCitas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,11 +71,7 @@ export default function AdminCitas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("Todas");
 
-  useEffect(() => {
-    fetchCitas();
-  }, []);
-
-  const fetchCitas = async () => {
+  const fetchCitas = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -75,8 +83,8 @@ export default function AdminCitas() {
           hora,
           estado,
           motivo_consulta,
-          pacientes (rut, nombre_completo),
-          kinesiologos (nombre_completo)
+          pacientes (rut, nombre, apellido),
+          kinesiologos (nombre, apellido)
         `,
         )
         .order("fecha", { ascending: false })
@@ -92,7 +100,13 @@ export default function AdminCitas() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Carga inicial de datos remotos: se resuelve con el callback estable de Supabase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCitas();
+  }, [fetchCitas]);
 
   const handleStatusChange = async (citaId, newStatus) => {
     try {
@@ -122,9 +136,9 @@ export default function AdminCitas() {
     const query = searchTerm.trim().toLowerCase();
 
     return citas.filter((cita) => {
-      const pacienteNombre = cita.pacientes?.nombre_completo || "";
+      const pacienteNombre = formatFullName(cita.pacientes);
       const pacienteRut = cita.pacientes?.rut || "";
-      const kineNombre = cita.kinesiologos?.nombre_completo || "";
+      const kineNombre = formatFullName(cita.kinesiologos);
       const fechaFormat = cita.fecha
         ? format(parseISO(cita.fecha), "dd MMM yyyy", { locale: es })
         : "";
@@ -275,7 +289,8 @@ export default function AdminCitas() {
               <tbody className="divide-y divide-slate-200">
                 {citasFiltradas.map((cita) => {
                   const pacienteNombre =
-                    cita.pacientes?.nombre_completo || "Sin Nombre";
+                    formatFullName(cita.pacientes) || "Sin Nombre";
+                  const kineNombre = formatFullName(cita.kinesiologos);
                   const estadoClases =
                     cita.estado === "asistida"
                       ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
@@ -307,7 +322,7 @@ export default function AdminCitas() {
                         {cita.pacientes?.rut || "-"}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">
-                        {cita.kinesiologos?.nombre_completo || "-"}
+                        {kineNombre || "-"}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 capitalize whitespace-nowrap">
                         {cita.fecha
@@ -319,7 +334,7 @@ export default function AdminCitas() {
                       <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">
                         {cita.hora ? cita.hora.substring(0, 5) : "-"}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 min-w-[200px]">
+                      <td className="min-w-50 px-6 py-4 text-sm text-slate-700">
                         {cita.motivo_consulta || "Sin motivo registrado"}
                       </td>
                       <td className="px-6 py-4">
