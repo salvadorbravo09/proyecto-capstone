@@ -1,130 +1,143 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Search,
   Clock3,
   CircleCheckBig,
   CalendarX2,
-  CalendarRange,
+  Loader2,
 } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { supabase } from "../lib/supabase";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
-const citasMock = [
+const resumenConfig = [
   {
-    id: 1,
-    paciente: "Camila Torres",
-    rut: "18.234.567-8",
-    kinesiologo: "Valentina Rojas",
-    fecha: "19 may 2026",
-    hora: "09:00",
-    motivo: "Control de rodilla",
-    estado: "Confirmada",
-  },
-  {
-    id: 2,
-    paciente: "Javier Muñoz",
-    rut: "15.678.901-2",
-    kinesiologo: "Diego Pérez",
-    fecha: "19 may 2026",
-    hora: "10:30",
-    motivo: "Evaluación inicial",
-    estado: "Pendiente",
-  },
-  {
-    id: 3,
-    paciente: "Andrea Soto",
-    rut: "17.456.789-0",
-    kinesiologo: "Fernanda López",
-    fecha: "20 may 2026",
-    hora: "11:00",
-    motivo: "Seguimiento funcional",
-    estado: "Confirmada",
-  },
-  {
-    id: 4,
-    paciente: "Rodrigo Salazar",
-    rut: "14.908.776-5",
-    kinesiologo: "Camila Vega",
-    fecha: "20 may 2026",
-    hora: "15:00",
-    motivo: "Revisión de ejercicios",
-    estado: "Cancelada",
-  },
-  {
-    id: 5,
-    paciente: "Valeria Díaz",
-    rut: "19.001.223-4",
-    kinesiologo: "Martín Herrera",
-    fecha: "21 may 2026",
-    hora: "08:30",
-    motivo: "Terapia de mantenimiento",
-    estado: "Pendiente",
-  },
-];
-
-const resumen = [
-  {
+    id: "total",
     label: "Citas totales",
-    value: "128",
     icon: CalendarDays,
     accent: "text-cyan-400",
     bg: "bg-cyan-500/10",
   },
   {
-    label: "Confirmadas",
-    value: "82",
+    id: "asistida",
+    label: "Asistidas",
     icon: CircleCheckBig,
     accent: "text-emerald-400",
     bg: "bg-emerald-500/10",
   },
   {
-    label: "Pendientes",
-    value: "31",
+    id: "agendada",
+    label: "Agendadas",
     icon: Clock3,
     accent: "text-amber-400",
     bg: "bg-amber-500/10",
   },
   {
+    id: "cancelada",
     label: "Canceladas",
-    value: "15",
     icon: CalendarX2,
     accent: "text-rose-400",
     bg: "bg-rose-500/10",
   },
 ];
 
-const filtros = ["Todas", "Confirmadas", "Pendientes", "Canceladas"];
-
-function getEstadoClasses(estado) {
-  if (estado === "Confirmada") {
-    return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
-  }
-
-  if (estado === "Pendiente") {
-    return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-  }
-
-  return "bg-rose-500/20 text-rose-300 border-rose-500/30";
-}
+const filtros = ["Todas", "agendada", "asistida", "cancelada"];
+const labelsFiltros = {
+  Todas: "Todas",
+  agendada: "Agendadas",
+  asistida: "Asistidas",
+  cancelada: "Canceladas",
+};
 
 export default function AdminCitas() {
+  const [citas, setCitas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("Todas");
+
+  useEffect(() => {
+    fetchCitas();
+  }, []);
+
+  const fetchCitas = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("citas")
+        .select(
+          `
+          id,
+          fecha,
+          hora,
+          estado,
+          motivo_consulta,
+          pacientes (rut, nombre_completo),
+          kinesiologos (nombre_completo)
+        `,
+        )
+        .order("fecha", { ascending: false })
+        .order("hora", { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        setCitas(data);
+      }
+    } catch (error) {
+      console.error("Error al cargar citas:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (citaId, newStatus) => {
+    try {
+      setUpdating(citaId);
+      const { error } = await supabase
+        .from("citas")
+        .update({ estado: newStatus })
+        .eq("id", citaId);
+
+      if (error) throw error;
+
+      // Actualizamos el estado local
+      setCitas((prev) =>
+        prev.map((cita) =>
+          cita.id === citaId ? { ...cita, estado: newStatus } : cita,
+        ),
+      );
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
+      alert("Hubo un error modificando el estado.");
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const citasFiltradas = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
-    return citasMock.filter((cita) => {
+    return citas.filter((cita) => {
+      const pacienteNombre = cita.pacientes?.nombre_completo || "";
+      const pacienteRut = cita.pacientes?.rut || "";
+      const kineNombre = cita.kinesiologos?.nombre_completo || "";
+      const fechaFormat = cita.fecha
+        ? format(parseISO(cita.fecha), "dd MMM yyyy", { locale: es })
+        : "";
+
       const matchesSearch =
         !query ||
         [
-          cita.paciente,
-          cita.rut,
-          cita.kinesiologo,
-          cita.fecha,
+          pacienteNombre,
+          pacienteRut,
+          kineNombre,
+          fechaFormat,
           cita.hora,
-          cita.motivo,
+          cita.motivo_consulta || "",
         ]
           .join(" ")
           .toLowerCase()
@@ -135,7 +148,16 @@ export default function AdminCitas() {
 
       return matchesSearch && matchesFilter;
     });
-  }, [searchTerm, activeFilter]);
+  }, [citas, searchTerm, activeFilter]);
+
+  const resumenCounts = useMemo(() => {
+    return {
+      total: citas.length,
+      asistida: citas.filter((c) => c.estado === "asistida").length,
+      agendada: citas.filter((c) => c.estado === "agendada").length,
+      cancelada: citas.filter((c) => c.estado === "cancelada").length,
+    };
+  }, [citas]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -145,17 +167,16 @@ export default function AdminCitas() {
         </h1>
         <p className="max-w-2xl text-sm text-slate-500">
           Vista de control para revisar citas registradas, filtrar su estado y
-          acceder rápidamente a cada reserva.
+          administrarlas.
         </p>
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {resumen.map((item) => {
+        {resumenConfig.map((item) => {
           const Icon = item.icon;
-
           return (
             <div
-              key={item.label}
+              key={item.id}
               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
               <div className="mb-3 flex items-center justify-between">
@@ -164,7 +185,7 @@ export default function AdminCitas() {
                 </div>
               </div>
               <p className="text-2xl font-semibold text-slate-900">
-                {item.value}
+                {resumenCounts[item.id]}
               </p>
               <p className="mt-1 text-xs text-slate-500">{item.label}</p>
             </div>
@@ -192,12 +213,12 @@ export default function AdminCitas() {
                 variant={activeFilter === filtro ? "default" : "ghost"}
                 className={
                   activeFilter === filtro
-                    ? "bg-[#2B6CB0] hover:bg-[#2C5282]"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    ? "bg-[#2B6CB0] hover:bg-[#2C5282] capitalize"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 capitalize"
                 }
                 onClick={() => setActiveFilter(filtro)}
               >
-                {filtro}
+                {labelsFiltros[filtro]}
               </Button>
             ))}
           </div>
@@ -212,7 +233,7 @@ export default function AdminCitas() {
                 Listado de citas
               </h2>
               <p className="text-sm text-slate-500">
-                Citas registradas en el sistema con información principal.
+                Citas registradas en el sistema procedentes de Supabase.
               </p>
             </div>
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
@@ -222,74 +243,113 @@ export default function AdminCitas() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-280">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-6 py-4 font-medium">Paciente</th>
-                <th className="px-6 py-4 font-medium">RUT</th>
-                <th className="px-6 py-4 font-medium">Kinesiólogo</th>
-                <th className="px-6 py-4 font-medium">Fecha</th>
-                <th className="px-6 py-4 font-medium">Hora</th>
-                <th className="px-6 py-4 font-medium">Motivo</th>
-                <th className="px-6 py-4 font-medium">Estado</th>
-                <th className="px-6 py-4 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {citasFiltradas.map((cita) => (
-                <tr
-                  key={cita.id}
-                  className="transition-colors hover:bg-slate-50/80"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-11 items-center justify-center rounded-full bg-linear-to-br from-cyan-500 to-blue-600 font-semibold text-white shadow-sm">
-                        {cita.paciente.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900">
-                          {cita.paciente}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          Cita programada
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
-                    {cita.rut}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
-                    {cita.kinesiologo}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
-                    {cita.fecha}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
-                    {cita.hora}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
-                    {cita.motivo}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getEstadoClasses(cita.estado)}`}
-                    >
-                      {cita.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <Button
-                      type="button"
-                      className="bg-[#2B6CB0] hover:bg-[#2C5282]"
-                    >
-                      Ver cita
-                    </Button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center p-12 text-slate-400">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-3 font-medium">Cargando citas...</span>
+            </div>
+          ) : citasFiltradas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 text-center text-slate-500">
+              <CalendarX2 className="mb-3 h-12 w-12 text-slate-300" />
+              <p className="text-lg font-medium text-slate-900">
+                No se encontraron citas
+              </p>
+              <p className="text-sm">
+                No existen registros que coincidan con la búsqueda actual.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full min-w-280">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-6 py-4 font-medium">Paciente</th>
+                  <th className="px-6 py-4 font-medium">RUT</th>
+                  <th className="px-6 py-4 font-medium">Kinesiólogo</th>
+                  <th className="px-6 py-4 font-medium">Fecha</th>
+                  <th className="px-6 py-4 font-medium">Hora</th>
+                  <th className="px-6 py-4 font-medium">Motivo</th>
+                  <th className="px-6 py-4 font-medium">Estado</th>
+                  <th className="px-6 py-4 font-medium">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {citasFiltradas.map((cita) => {
+                  const pacienteNombre =
+                    cita.pacientes?.nombre_completo || "Sin Nombre";
+                  const estadoClases =
+                    cita.estado === "asistida"
+                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
+                      : cita.estado === "agendada"
+                        ? "bg-amber-500/10 text-amber-600 border-amber-200"
+                        : "bg-rose-500/10 text-rose-600 border-rose-200";
+
+                  return (
+                    <tr
+                      key={cita.id}
+                      className="transition-colors hover:bg-slate-50/80"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-11 items-center justify-center rounded-full bg-linear-to-br from-cyan-500 to-blue-600 font-semibold text-white shadow-sm shrink-0">
+                            {pacienteNombre.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {pacienteNombre}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              Cita programada
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">
+                        {cita.pacientes?.rut || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">
+                        {cita.kinesiologos?.nombre_completo || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 capitalize whitespace-nowrap">
+                        {cita.fecha
+                          ? format(parseISO(cita.fecha), "dd MMM yyyy", {
+                              locale: es,
+                            })
+                          : "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 whitespace-nowrap">
+                        {cita.hora ? cita.hora.substring(0, 5) : "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 min-w-[200px]">
+                        {cita.motivo_consulta || "Sin motivo registrado"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={cita.estado}
+                          disabled={updating === cita.id}
+                          onChange={(e) =>
+                            handleStatusChange(cita.id, e.target.value)
+                          }
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize outline-none cursor-pointer focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 disabled:opacity-50 transition-all ${estadoClases}`}
+                        >
+                          <option value="agendada">Agendada</option>
+                          <option value="asistida">Asistida</option>
+                          <option value="cancelada">Cancelada</option>
+                        </select>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Button
+                          type="button"
+                          className="bg-[#2B6CB0] hover:bg-[#2C5282]"
+                        >
+                          Ver cita
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
