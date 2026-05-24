@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
@@ -19,12 +19,13 @@ export default function Pacientes() {
   const [kinesiologoId, setKinesiologoId] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
+  const [previsiones, setPrevisiones] = useState([]);
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
     rut: "",
     telefono: "",
-    prevision: "",
+    prevision_id: "",
     fecha_nacimiento: "",
     email: "",
   });
@@ -48,6 +49,12 @@ export default function Pacientes() {
         .single();
       if (kinData) setKinesiologoId(kinData.id);
     }
+
+    const { data: prevData } = await supabase
+      .from("previsiones")
+      .select("id, nombre")
+      .order("nombre", { ascending: true });
+    setPrevisiones(prevData || []);
 
     fetchData();
   }
@@ -108,7 +115,7 @@ export default function Pacientes() {
         email: formData.email.trim().toLowerCase(),
         rut: formData.rut.trim() || null,
         telefono: formData.telefono.trim() || null,
-        prevision: formData.prevision.trim() || null,
+        prevision_id: formData.prevision_id || null,
         fecha_nacimiento: formData.fecha_nacimiento || null,
       };
 
@@ -133,7 +140,7 @@ export default function Pacientes() {
         apellido: "",
         rut: "",
         telefono: "",
-        prevision: "",
+        prevision_id: "",
         fecha_nacimiento: "",
         email: "",
       });
@@ -166,9 +173,16 @@ export default function Pacientes() {
     return { cantidadCitas, ultimaCita, kinesiologo: kinesiologoNombre, estado };
   }
 
+  const previsionMap = useMemo(() => {
+    const map = new Map();
+    previsiones.forEach((p) => map.set(p.id, p.nombre));
+    return map;
+  }, [previsiones]);
+
   const processedPacientes = pacientes.map((paciente) => ({
     ...paciente,
     ...getPacienteData(paciente.id),
+    previsionNombre: previsionMap.get(paciente.prevision_id) || paciente.prevision || "-",
   }));
 
   const filteredPacientes = processedPacientes.filter(
@@ -260,7 +274,7 @@ export default function Pacientes() {
                           {`${paciente.nombre || ''} ${paciente.apellido || ''}`.trim() || "Sin nombre"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {paciente.prevision || "-"}
+                          {paciente.previsionNombre}
                         </p>
                       </div>
                     </div>
@@ -402,13 +416,20 @@ export default function Pacientes() {
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Previsión</label>
-                <Input
-                  placeholder="Ej: FONASA, Isapre"
-                  value={formData.prevision}
+                <select
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[#2B6CB0]"
+                  value={formData.prevision_id}
                   onChange={(e) =>
-                    setFormData({ ...formData, prevision: e.target.value })
+                    setFormData({ ...formData, prevision_id: e.target.value })
                   }
-                />
+                >
+                  <option value="">Sin previsión</option>
+                  {previsiones.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Fecha de nacimiento</label>

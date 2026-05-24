@@ -74,8 +74,8 @@ export default function AdminDashboard() {
           .lte("fecha", mesFin),
         supabase
           .from("citas")
-          .select("*", { count: "exact", head: true })
-          .eq("estado", "cancelada")
+          .select("*, estados!inner(nombre)", { count: "exact", head: true })
+          .eq("estados.nombre", "cancelada")
           .gte("fecha", mesInicio)
           .lte("fecha", mesFin),
         supabase
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
             id,
             fecha,
             hora,
-            estado,
+            estados(nombre),
             paciente_id,
             paciente:pacientes(nombre, apellido),
             kinesiologo:kinesiologos(nombre, apellido)
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
             id,
             fecha,
             hora,
-            estado,
+            estados(nombre),
             paciente:pacientes(nombre, apellido),
             kinesiologo:kinesiologos(nombre, apellido)
           `,
@@ -113,14 +113,14 @@ export default function AdminDashboard() {
           .limit(5),
         supabase
           .from("citas")
-          .select("*", { count: "exact", head: true })
-          .eq("estado", "agendada")
+          .select("*, estados!inner(nombre)", { count: "exact", head: true })
+          .eq("estados.nombre", "agendada")
           .gte("fecha", mesInicio)
           .lte("fecha", mesFin),
         supabase
           .from("citas")
-          .select("*", { count: "exact", head: true })
-          .eq("estado", "asistida")
+          .select("*, estados!inner(nombre)", { count: "exact", head: true })
+          .eq("estados.nombre", "asistida")
           .gte("fecha", mesInicio)
           .lte("fecha", mesFin),
       ]);

@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { addDays, format, isAfter, isBefore, parseISO, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Clock, Filter, Plus, Loader2 } from "lucide-react";
+import {
+  addDays,
+  format,
+  isAfter,
+  isBefore,
+  parseISO,
+  startOfWeek,
+} from "date-fns";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Filter,
+  Plus,
+  Loader2,
+} from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
 import { supabase } from "@/lib/supabase";
 import { getUserRole } from "@/lib/auth";
 
-const dayLabels = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const dayLabels = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const timeSlots = [
   "09:00",
   "10:00",
@@ -40,17 +54,24 @@ function formatDateLabel(date) {
 
 function getDisplayName(person) {
   if (!person) return "Sin nombre";
-  const name = [person.nombre, person.apellido].filter(Boolean).join(" ").trim();
+  const name = [person.nombre, person.apellido]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
   return name || person.nombre_completo || "Sin nombre";
 }
 
 function getCellKey(dateKeyOrDate, time) {
-  const dateKeyStr = typeof dateKeyOrDate === "string" ? dateKeyOrDate : formatDateKey(dateKeyOrDate);
+  const dateKeyStr =
+    typeof dateKeyOrDate === "string"
+      ? dateKeyOrDate
+      : formatDateKey(dateKeyOrDate);
   return `${dateKeyStr}-${time}`;
 }
 
 function getStateClasses(estado) {
-  if (estado === "asistida") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (estado === "asistida")
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (estado === "cancelada") return "border-rose-200 bg-rose-50 text-rose-700";
   return "border-sky-200 bg-sky-50 text-sky-700";
 }
@@ -70,7 +91,8 @@ export default function Agenda() {
   const [kinesiologoId, setKinesiologoId] = useState(null);
   const [kinesiologoName, setKinesiologoName] = useState("");
   const [kinesiologos, setKinesiologos] = useState([]);
-  const [adminSelectedKinesiologoId, setAdminSelectedKinesiologoId] = useState(null);
+  const [adminSelectedKinesiologoId, setAdminSelectedKinesiologoId] =
+    useState(null);
   const [patients, setPatients] = useState([]);
   const [citas, setCitas] = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -89,8 +111,12 @@ export default function Agenda() {
   useEffect(() => {
     if (userRole === "admin") {
       // load patients and citas for selected kinesiologo (or all if null)
-      loadPatients(adminSelectedKinesiologoId, userRole).catch((err) => console.error(err));
-      loadCitas(adminSelectedKinesiologoId, userRole).catch((err) => console.error(err));
+      loadPatients(adminSelectedKinesiologoId, userRole).catch((err) =>
+        console.error(err),
+      );
+      loadCitas(adminSelectedKinesiologoId, userRole).catch((err) =>
+        console.error(err),
+      );
     }
   }, [adminSelectedKinesiologoId, userRole]);
 
@@ -110,7 +136,7 @@ export default function Agenda() {
     });
   }, [weekStart]);
 
-  const weekEnd = useMemo(() => addDays(weekStart, 5), [weekStart]);
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
 
   const weekLabel = useMemo(() => {
     return `Semana del ${format(weekStart, "dd 'de' MMMM")} al ${format(
@@ -143,7 +169,9 @@ export default function Agenda() {
   }, [filteredCitas]);
 
   const selectedPatient = useMemo(() => {
-    return patients.find((patient) => patient.id === formData.paciente_id) || null;
+    return (
+      patients.find((patient) => patient.id === formData.paciente_id) || null
+    );
   }, [patients, formData.paciente_id]);
 
   async function initialize() {
@@ -232,7 +260,7 @@ export default function Agenda() {
           id,
           fecha,
           hora,
-          estado,
+          estados(nombre),
           motivo_consulta,
           paciente:pacientes(id, nombre, apellido, rut),
           kinesiologo_id
@@ -257,14 +285,17 @@ export default function Agenda() {
 
   function openNewCitaModal() {
     if (userRole === "admin" && kinesiologos.length === 0) {
-      setErrorMessage("No hay kinesiólogos cargados. No se puede crear la cita.");
+      setErrorMessage(
+        "No hay kinesiólogos cargados. No se puede crear la cita.",
+      );
       return;
     }
 
     const today = format(new Date(), "yyyy-MM-dd");
     setFormData({
       paciente_id: patients[0]?.id || "",
-      kinesiologo_id: userRole === "admin" ? adminSelectedKinesiologoId || "" : "",
+      kinesiologo_id:
+        userRole === "admin" ? adminSelectedKinesiologoId || "" : "",
       fecha: today,
       hora: "09:00",
       motivo_consulta: "",
@@ -282,11 +313,21 @@ export default function Agenda() {
       let targetKinesiologoId = kinesiologoId;
 
       if (userRole === "admin") {
-        targetKinesiologoId = formData.kinesiologo_id || adminSelectedKinesiologoId;
+        targetKinesiologoId =
+          formData.kinesiologo_id || adminSelectedKinesiologoId;
         if (!targetKinesiologoId) {
           throw new Error("Selecciona un kinesiólogo para la cita.");
         }
       }
+
+      const { data: estadoData, error: estadoError } = await supabase
+        .from("estados")
+        .select("id")
+        .eq("entidad", "citas")
+        .eq("nombre", "agendada")
+        .single();
+
+      if (estadoError) throw new Error("No se pudo obtener el estado inicial.");
 
       const payload = {
         paciente_id: formData.paciente_id,
@@ -294,18 +335,31 @@ export default function Agenda() {
         fecha: formData.fecha,
         hora: formData.hora,
         motivo_consulta: formData.motivo_consulta.trim() || null,
-        estado: "agendada",
+        estado_id: estadoData.id,
       };
 
-      const { error } = await supabase.from("citas").insert([payload]);
+      const { data: insertedCita, error } = await supabase
+        .from("citas")
+        .insert([payload])
+        .select();
 
       if (error) {
         throw error;
       }
 
+      if (insertedCita && insertedCita[0]) {
+        await supabase.from("estado_historial").insert({
+          entidad_tipo: "citas",
+          entidad_id: insertedCita[0].id,
+          estado_id: estadoData.id,
+          comentario: "Cita agendada inicialmente",
+        });
+      }
+
       setShowModal(false);
       // Reload citas using current admin filter (if any) or the kinesiologo id
-      const reloadKinId = userRole === "admin" ? adminSelectedKinesiologoId : kinesiologoId;
+      const reloadKinId =
+        userRole === "admin" ? adminSelectedKinesiologoId : kinesiologoId;
       await loadCitas(reloadKinId, userRole);
     } catch (error) {
       console.error("Error creando cita:", error);
@@ -321,7 +375,7 @@ export default function Agenda() {
     return items.map((cita) => (
       <div
         key={cita.id}
-        className={`rounded-xl border px-3 py-2 text-xs shadow-sm ${getStateClasses(cita.estado)}`}
+        className={`rounded-xl border px-3 py-2 text-xs shadow-sm ${getStateClasses(cita.estados?.nombre || "agendada")}`}
       >
         <p className="font-semibold leading-tight text-slate-900">
           {getDisplayName(cita.paciente)}
@@ -329,7 +383,9 @@ export default function Agenda() {
         <p className="mt-1 text-[11px] text-slate-600">
           {formatTimeKey(cita.hora)} · {cita.motivo_consulta || "Sin motivo"}
         </p>
-        <p className="mt-1 text-[11px] font-medium">{getStatusLabel(cita.estado)}</p>
+        <p className="mt-1 text-[11px] font-medium">
+          {getStatusLabel(cita.estados?.nombre || "agendada")}
+        </p>
       </div>
     ));
   }
@@ -346,7 +402,9 @@ export default function Agenda() {
     <div className="min-h-screen bg-slate-50 p-8">
       <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-slate-900">Agenda</h1>
+          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-slate-900">
+            Agenda
+          </h1>
           <p className="text-sm text-slate-500">{weekLabel}</p>
         </div>
 
@@ -356,7 +414,9 @@ export default function Agenda() {
               <select
                 className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none"
                 value={adminSelectedKinesiologoId || ""}
-                onChange={(e) => setAdminSelectedKinesiologoId(e.target.value || null)}
+                onChange={(e) =>
+                  setAdminSelectedKinesiologoId(e.target.value || null)
+                }
               >
                 <option value="">Todos los kinesiólogos</option>
                 {kinesiologos.map((k) => (
@@ -380,7 +440,10 @@ export default function Agenda() {
               <Filter className="size-4" />
               Filtros
             </Button>
-            <Button className="gap-2 bg-[#2B6CB0] hover:bg-[#2C5282]" onClick={openNewCitaModal}>
+            <Button
+              className="gap-2 bg-[#2B6CB0] hover:bg-[#2C5282]"
+              onClick={openNewCitaModal}
+            >
               <Plus className="size-4" />
               Nueva cita
             </Button>
@@ -396,16 +459,21 @@ export default function Agenda() {
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-slate-900">
-                {userRole === "admin" ? "Filtro de kinesiólogo" : "Kinesiólogo activo"}
-              </p>
-              <p className="text-sm text-slate-500">
-                {userRole === "admin"
-                  ? (adminSelectedKinesiologoId ? `${kinesiologos.find(k=>k.id===adminSelectedKinesiologoId)?.nombre || "Kinesiólogo"}` : "Todos los kinesiólogos")
-                  : kinesiologoName || "Sin perfil vinculado"}{" "}· {patients.length} pacientes asignados
-              </p>
-            </div>
+          <div>
+            <p className="text-sm font-medium text-slate-900">
+              {userRole === "admin"
+                ? "Filtro de kinesiólogo"
+                : "Kinesiólogo activo"}
+            </p>
+            <p className="text-sm text-slate-500">
+              {userRole === "admin"
+                ? adminSelectedKinesiologoId
+                  ? `${kinesiologos.find((k) => k.id === adminSelectedKinesiologoId)?.nombre || "Kinesiólogo"}`
+                  : "Todos los kinesiólogos"
+                : kinesiologoName || "Sin perfil vinculado"}{" "}
+              · {patients.length} pacientes asignados
+            </p>
+          </div>
 
           <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-600">
             <Clock className="size-4" />
@@ -418,8 +486,12 @@ export default function Agenda() {
         <div className="border-b border-slate-200 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Calendario semanal</h2>
-              <p className="text-sm text-slate-500">Solo muestra tus pacientes y tus citas</p>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Calendario semanal
+              </h2>
+              <p className="text-sm text-slate-500">
+                Solo muestra tus pacientes y tus citas
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -445,14 +517,19 @@ export default function Agenda() {
 
         <div className="overflow-x-auto">
           <div className="min-w-270 p-6">
-            <div className="grid grid-cols-[88px_repeat(6,minmax(150px,1fr))] gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200">
+            <div className="grid grid-cols-[88px_repeat(7,minmax(140px,1fr))] gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200">
               <div className="bg-slate-50 px-3 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Hora
               </div>
               {weekDays.map((day) => (
-                <div key={day.dateKey} className="bg-slate-50 px-3 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <div
+                  key={day.dateKey}
+                  className="bg-slate-50 px-3 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500"
+                >
                   <div>{day.label}</div>
-                  <div className="normal-case tracking-normal">{formatDateLabel(day.date)}</div>
+                  <div className="normal-case tracking-normal">
+                    {formatDateLabel(day.date)}
+                  </div>
                 </div>
               ))}
 
@@ -463,8 +540,13 @@ export default function Agenda() {
                   </div>
 
                   {weekDays.map((day) => (
-                    <div key={`${day.dateKey}-${time}`} className="min-h-14 bg-white px-2 py-2">
-                      <div className="space-y-2">{renderAppointmentsForCell(day.dateKey, time)}</div>
+                    <div
+                      key={`${day.dateKey}-${time}`}
+                      className="min-h-14 bg-white px-2 py-2"
+                    >
+                      <div className="space-y-2">
+                        {renderAppointmentsForCell(day.dateKey, time)}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -474,9 +556,12 @@ export default function Agenda() {
             {filteredCitas.length === 0 ? (
               <div className="pointer-events-none mt-6 flex items-center justify-center p-6 text-center">
                 <div className="max-w-md rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-5 shadow-sm">
-                  <p className="text-sm font-medium text-slate-900">Sin citas cargadas</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    Sin citas cargadas
+                  </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Crea la primera cita con el botón <span className="font-medium">Nueva cita</span>.
+                    Crea la primera cita con el botón{" "}
+                    <span className="font-medium">Nueva cita</span>.
                   </p>
                 </div>
               </div>
@@ -493,7 +578,9 @@ export default function Agenda() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           {userRole === "admin" ? (
             <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-700">Kinesiólogo</label>
+              <label className="text-sm font-medium text-slate-700">
+                Kinesiólogo
+              </label>
               <select
                 className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[#2B6CB0]"
                 value={formData.kinesiologo_id || ""}
@@ -519,11 +606,15 @@ export default function Agenda() {
           ) : null}
 
           <div className="grid gap-2">
-            <label className="text-sm font-medium text-slate-700">Paciente</label>
+            <label className="text-sm font-medium text-slate-700">
+              Paciente
+            </label>
             <select
               className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[#2B6CB0]"
               value={formData.paciente_id}
-              onChange={(event) => setFormData({ ...formData, paciente_id: event.target.value })}
+              onChange={(event) =>
+                setFormData({ ...formData, paciente_id: event.target.value })
+              }
               required
             >
               {patients.map((patient) => (
@@ -534,18 +625,23 @@ export default function Agenda() {
             </select>
             {selectedPatient ? (
               <p className="text-xs text-slate-500">
-                Se agendará solo para el paciente asignado {getDisplayName(selectedPatient)}.
+                Se agendará solo para el paciente asignado{" "}
+                {getDisplayName(selectedPatient)}.
               </p>
             ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-700">Fecha</label>
+              <label className="text-sm font-medium text-slate-700">
+                Fecha
+              </label>
               <Input
                 type="date"
                 value={formData.fecha}
-                onChange={(event) => setFormData({ ...formData, fecha: event.target.value })}
+                onChange={(event) =>
+                  setFormData({ ...formData, fecha: event.target.value })
+                }
                 required
               />
             </div>
@@ -554,7 +650,9 @@ export default function Agenda() {
               <Input
                 type="time"
                 value={formData.hora}
-                onChange={(event) => setFormData({ ...formData, hora: event.target.value })}
+                onChange={(event) =>
+                  setFormData({ ...formData, hora: event.target.value })
+                }
                 required
               />
             </div>
@@ -565,15 +663,28 @@ export default function Agenda() {
             <Input
               placeholder="Ej: Control de rodilla"
               value={formData.motivo_consulta}
-              onChange={(event) => setFormData({ ...formData, motivo_consulta: event.target.value })}
+              onChange={(event) =>
+                setFormData({
+                  ...formData,
+                  motivo_consulta: event.target.value,
+                })
+              }
             />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowModal(false)}
+            >
               Cancelar
             </Button>
-            <Button type="submit" className="bg-[#2B6CB0] hover:bg-[#2C5282]" disabled={saving}>
+            <Button
+              type="submit"
+              className="bg-[#2B6CB0] hover:bg-[#2C5282]"
+              disabled={saving}
+            >
               {saving ? "Agendando..." : "Agendar cita"}
             </Button>
           </div>

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 export default function AdminKinesiologos() {
   const [loading, setLoading] = useState(true);
   const [kinesiologos, setKinesiologos] = useState([]);
+  const [especialidades, setEspecialidades] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -17,15 +18,24 @@ export default function AdminKinesiologos() {
     apellido: "",
     email: "",
     password: "",
-    especialidad: "",
+    especialidad_id: "",
     registro_minsal: "",
     telefono: "",
     rut: "",
   });
 
   useEffect(() => {
-    fetchKinesiologos();
+    init();
   }, []);
+
+  async function init() {
+    const { data: espData } = await supabase
+      .from("especialidades")
+      .select("id, nombre")
+      .order("nombre", { ascending: true });
+    setEspecialidades(espData || []);
+    fetchKinesiologos();
+  }
 
   async function fetchKinesiologos() {
     setLoading(true);
@@ -33,7 +43,7 @@ export default function AdminKinesiologos() {
       const { data, error } = await supabase
         .from("kinesiologos")
         .select(
-          "id, usuario_id, nombre, apellido, especialidad, registro_minsal, telefono, rut, usuarios:usuarios(email)",
+          "id, usuario_id, nombre, apellido, especialidad, especialidad_id, especialidades(nombre), registro_minsal, telefono, rut, usuarios:usuarios(email)",
         )
         .order("nombre");
 
@@ -57,7 +67,7 @@ export default function AdminKinesiologos() {
         apellido: formData.apellido.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password.trim(),
-        especialidad: formData.especialidad.trim(),
+        especialidad_id: formData.especialidad_id || null,
         registro_minsal: formData.registro_minsal.trim(),
         telefono: formData.telefono.trim(),
         rut: formData.rut.trim(),
@@ -79,7 +89,7 @@ export default function AdminKinesiologos() {
         apellido: "",
         email: "",
         password: "",
-        especialidad: "",
+        especialidad_id: "",
         registro_minsal: "",
         telefono: "",
         rut: "",
@@ -175,7 +185,7 @@ export default function AdminKinesiologos() {
                       </div>
                     </div>
                   </td>
-                  <td className="p-4">{k.especialidad || '-'}</td>
+                  <td className="p-4">{k.especialidades?.nombre || k.especialidad || '-'}</td>
                   <td className="p-4">{k.registro_minsal || '-'}</td>
                   <td className="p-4">{k.rut || '-'}</td>
                   <td className="p-4">{k.telefono || '-'}</td>
@@ -262,14 +272,21 @@ export default function AdminKinesiologos() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm font-medium">Especialidad *</label>
-            <Input
-              placeholder="Ej: Fisioterapia"
-              value={formData.especialidad}
+            <select
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[#2B6CB0]"
+              value={formData.especialidad_id}
               onChange={(e) =>
-                setFormData({ ...formData, especialidad: e.target.value })
+                setFormData({ ...formData, especialidad_id: e.target.value })
               }
               required
-            />
+            >
+              <option value="">Selecciona una especialidad</option>
+              {especialidades.map((esp) => (
+                <option key={esp.id} value={esp.id}>
+                  {esp.nombre}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="grid gap-2">
             <label className="text-sm font-medium">Registro MINSAL *</label>

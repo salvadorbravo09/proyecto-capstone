@@ -66,14 +66,26 @@ function formatFullName(persona) {
 
 export default function AdminCitas() {
   const [citas, setCitas] = useState([]);
+  const [catalogoEstados, setCatalogoEstados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("Todas");
 
-  const fetchCitas = useCallback(async () => {
+  const fetchInitialData = useCallback(async () => {
     try {
       setLoading(true);
+
+      // 1. Obtener catálogo de estados posibles para citas
+      const { data: estadosData, error: estadosError } = await supabase
+        .from("estados")
+        .select("id, nombre")
+        .eq("entidad", "citas");
+
+      if (estadosError) throw estadosError;
+      if (estadosData) setCatalogoEstados(estadosData);
+
+      // 2. Obtener las citas
       const { data, error } = await supabase
         .from("citas")
         .select(
@@ -81,8 +93,8 @@ export default function AdminCitas() {
           id,
           fecha,
           hora,
-          estado,
           motivo_consulta,
+          estados (id, nombre),
           pacientes (rut, nombre, apellido),
           kinesiologos (nombre, apellido)
         `,
@@ -96,32 +108,57 @@ export default function AdminCitas() {
         setCitas(data);
       }
     } catch (error) {
-      console.error("Error al cargar citas:", error);
+      console.error("Error al cargar citas o estados:", error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // Carga inicial de datos remotos: se resuelve con el callback estable de Supabase.
+    // Carga inicial de datos combinada
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchCitas();
-  }, [fetchCitas]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-  const handleStatusChange = async (citaId, newStatus) => {
+  const handleStatusChange = async (citaId, newStatusName) => {
     try {
       setUpdating(citaId);
-      const { error } = await supabase
+
+      const targetState = catalogoEstados.find(
+        (e) => e.nombre === newStatusName,
+      );
+      if (!targetState) {
+        throw new Error("Estado no encontrado en el catálogo");
+      }
+
+      // 1. Actualizar estado de la cita
+      const { error: updateError } = await supabase
         .from("citas")
-        .update({ estado: newStatus })
+        .update({ estado_id: targetState.id })
         .eq("id", citaId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // 2. Registrar en historial de cambios
+      const { error: historyError } = await supabase
+        .from("estado_historial")
+        .insert({
+          entidad_tipo: "citas",
+          entidad_id: citaId,
+          estado_id: targetState.id,
+          comentario: "Estado actualizado desde panel de administración",
+        });
+
+      if (historyError) {
+        console.warn("No se pudo insertar en historial:", historyError);
+      }
 
       // Actualizamos el estado local
       setCitas((prev) =>
         prev.map((cita) =>
-          cita.id === citaId ? { ...cita, estado: newStatus } : cita,
+          cita.id === citaId
+            ? { ...cita, estados: { ...cita.estados, nombre: newStatusName } }
+            : cita,
         ),
       );
     } catch (error) {
@@ -158,7 +195,7 @@ export default function AdminCitas() {
           .includes(query);
 
       const matchesFilter =
-        activeFilter === "Todas" || cita.estado === activeFilter;
+        activeFilter === "Todas" || cita.estados?.nombre === activeFilter;
 
       return matchesSearch && matchesFilter;
     });
@@ -167,9 +204,9 @@ export default function AdminCitas() {
   const resumenCounts = useMemo(() => {
     return {
       total: citas.length,
-      asistida: citas.filter((c) => c.estado === "asistida").length,
-      agendada: citas.filter((c) => c.estado === "agendada").length,
-      cancelada: citas.filter((c) => c.estado === "cancelada").length,
+      asistida: citas.filter((c) => c.estados?.nombre === "asistida").length,
+      agendada: citas.filter((c) => c.estados?.nombre === "agendada").length,
+      cancelada: citas.filter((c) => c.estados?.nombre === "cancelada").length,
     };
   }, [citas]);
 
@@ -291,10 +328,11 @@ export default function AdminCitas() {
                   const pacienteNombre =
                     formatFullName(cita.pacientes) || "Sin Nombre";
                   const kineNombre = formatFullName(cita.kinesiologos);
+                  const nombreEstado = cita.estados?.nombre;
                   const estadoClases =
-                    cita.estado === "asistida"
+                    nombreEstado === "asistida"
                       ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
-                      : cita.estado === "agendada"
+                      : nombreEstado === "agendada"
                         ? "bg-amber-500/10 text-amber-600 border-amber-200"
                         : "bg-rose-500/10 text-rose-600 border-rose-200";
 
@@ -339,7 +377,7 @@ export default function AdminCitas() {
                       </td>
                       <td className="px-6 py-4">
                         <select
-                          value={cita.estado}
+                          value={nombreEstado || "agendada"}
                           disabled={updating === cita.id}
                           onChange={(e) =>
                             handleStatusChange(cita.id, e.target.value)

@@ -77,7 +77,7 @@ export default function Dashboard() {
           id,
           fecha,
           hora,
-          estado,
+          estados(nombre),
           paciente:pacientes(nombre, apellido),
           kinesiologo:kinesiologos(nombre, apellido)
         `,
@@ -127,7 +127,7 @@ export default function Dashboard() {
         setOcupacionData(ocupacion);
 
         const inasistenciasCount = citasData.filter(
-          (c) => c.estado === "cancelada",
+          (c) => c.estados?.nombre === "cancelada",
         ).length;
         setInasistencias(inasistenciasCount);
       }
@@ -276,14 +276,14 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          cita.estado === "asistida"
+                          cita.estados?.nombre === "asistida"
                             ? "bg-[#38A169] text-white"
-                            : cita.estado === "agendada"
+                            : cita.estados?.nombre === "agendada"
                               ? "bg-[#D69E2E] text-white"
                               : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {cita.estado}
+                        {cita.estados?.nombre}
                       </span>
                     </div>
                   </div>
@@ -321,14 +321,14 @@ export default function Dashboard() {
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          cita.estado === "asistida"
+                          cita.estados?.nombre === "asistida"
                             ? "bg-[#38A169] text-white"
-                            : cita.estado === "agendada"
+                            : cita.estados?.nombre === "agendada"
                               ? "bg-[#D69E2E] text-white"
                               : "bg-muted text-muted-foreground"
                         }`}
                       >
-                        {cita.estado}
+                        {cita.estados?.nombre}
                       </span>
                     </div>
                   </div>
