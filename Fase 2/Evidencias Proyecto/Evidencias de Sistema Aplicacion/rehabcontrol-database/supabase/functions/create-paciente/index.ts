@@ -8,6 +8,7 @@ type CreatePacientePayload = {
   rut?: string | null;
   telefono?: string | null;
   prevision?: string | null;
+  prevision_id?: string | null;
   fecha_nacimiento?: string | null;
 };
 
@@ -80,6 +81,7 @@ Deno.serve(async (req) => {
   const rut = payload.rut?.trim();
   const telefono = payload.telefono?.trim();
   const prevision = payload.prevision?.trim();
+  const previsionId = payload.prevision_id?.trim() || null;
   const fechaNacimiento = payload.fecha_nacimiento?.trim();
 
   if (!nombre || !apellido || !email) {
@@ -126,6 +128,7 @@ Deno.serve(async (req) => {
     rut,
     telefono,
     prevision,
+    prevision_id: previsionId,
     fecha_nacimiento: fechaNacimiento || null,
     email,
   };

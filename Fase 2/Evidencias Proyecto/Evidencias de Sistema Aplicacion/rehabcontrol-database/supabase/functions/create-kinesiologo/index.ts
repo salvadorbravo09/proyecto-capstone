@@ -7,6 +7,7 @@ type CreateKinesiologoPayload = {
   email: string;
   password: string;
   especialidad?: string | null;
+  especialidad_id?: string | null;
   registro_minsal?: string | null;
   telefono?: string | null;
   rut?: string | null;
@@ -80,6 +81,7 @@ Deno.serve(async (req) => {
   const email = payload.email?.trim().toLowerCase();
   const password = payload.password?.trim();
   const especialidad = payload.especialidad?.trim();
+  const especialidadId = payload.especialidad_id?.trim() || null;
   const registroMinsal = payload.registro_minsal?.trim();
   const telefono = payload.telefono?.trim();
   const rut = payload.rut?.trim();
@@ -88,7 +90,7 @@ Deno.serve(async (req) => {
     return jsonResponse(400, { error: "Missing required fields." });
   }
 
-  if (!especialidad || !registroMinsal || !telefono || !rut) {
+  if ((!especialidad && !especialidadId) || !registroMinsal || !telefono || !rut) {
     return jsonResponse(400, { error: "Missing required kinesiologo data." });
   }
 
@@ -111,6 +113,7 @@ Deno.serve(async (req) => {
     nombre,
     apellido,
     especialidad,
+    especialidad_id: especialidadId,
     registro_minsal: registroMinsal,
     telefono,
     rut,
