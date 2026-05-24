@@ -14,7 +14,7 @@ type Cita = {
   id: string;
   fecha: string;
   hora: string;
-  estado: string;
+  estados: { nombre: string } | null;
   motivo_consulta: string | null;
   kinesiologo: { nombre: string; apellido: string }[] | null;
 };
@@ -42,7 +42,7 @@ export default function AppointmentsScreen() {
 
       const { data } = await supabase
         .from("citas")
-        .select("id, fecha, hora, estado, motivo_consulta, kinesiologo:kinesiologos(nombre, apellido)")
+        .select("id, fecha, hora, estados(nombre), motivo_consulta, kinesiologo:kinesiologos(nombre, apellido)")
         .eq("paciente_id", pacienteData.id)
         .order("fecha", { ascending: true })
         .order("hora", { ascending: true });
@@ -111,10 +111,10 @@ export default function AppointmentsScreen() {
                   <View
                     style={[
                       styles.estadoBadge,
-                      { backgroundColor: getEstadoColor(cita.estado) },
+                      { backgroundColor: getEstadoColor(cita.estados?.nombre || "agendada") },
                     ]}
                   >
-                    <Text style={styles.estadoText}>{cita.estado}</Text>
+                    <Text style={styles.estadoText}>{cita.estados?.nombre || "Agendada"}</Text>
                   </View>
                 </View>
                 <View style={styles.cardBody}>

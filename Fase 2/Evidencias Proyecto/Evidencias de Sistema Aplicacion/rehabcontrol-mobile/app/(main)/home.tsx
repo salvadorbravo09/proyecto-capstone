@@ -26,7 +26,7 @@ type Cita = {
   id: string;
   fecha: string;
   hora: string;
-  estado: string;
+  estados: { nombre: string } | null;
   kinesiologo: { nombre: string; apellido: string }[] | null;
 };
 
@@ -80,7 +80,7 @@ export default function HomeScreen() {
       const [citasRes, planRes, progresoRes] = await Promise.all([
         supabase
           .from("citas")
-          .select("id, fecha, hora, estado, kinesiologo:kinesiologos(nombre, apellido)")
+          .select("id, fecha, hora, estados(nombre), kinesiologo:kinesiologos(nombre, apellido)")
           .eq("paciente_id", pacienteData.id)
           .gte("fecha", today)
           .lte("fecha", weekEnd)
@@ -296,7 +296,7 @@ export default function HomeScreen() {
                       : "Kinesiólogo"}
                   </Text>
                   <Text style={styles.doctorSpecialty}>
-                    {cita.estado}
+                    {cita.estados?.nombre || "Agendada"}
                   </Text>
                   <View style={styles.appointmentTime}>
                     <Ionicons name="calendar-outline" size={14} color="#666" />

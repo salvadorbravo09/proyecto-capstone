@@ -42,7 +42,7 @@ export default function AlertsScreen() {
 
       const { data: citasData } = await supabase
         .from("citas")
-        .select("id, fecha, hora, estado")
+        .select("id, fecha, hora, estados(nombre)")
         .eq("paciente_id", pacienteData.id)
         .gte("fecha", today)
         .order("fecha", { ascending: true })
