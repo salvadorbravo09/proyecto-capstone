@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { format, subDays } from "date-fns";
 import { getUserRole } from "@/lib/auth";
+import { formatRut, unformatRut, validateRut } from "../lib/rut";
 
 export default function Pacientes() {
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,8 @@ export default function Pacientes() {
   const [errorMessage, setErrorMessage] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [previsiones, setPrevisiones] = useState([]);
+  const [errores, setErrores] = useState({});
+  const [camposVerificando, setCamposVerificando] = useState({});
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -93,6 +96,88 @@ export default function Pacientes() {
     }
   }
 
+  async function verificarUnico(tabla, campo, valor) {
+    setCamposVerificando((prev) => ({ ...prev, [campo]: true }));
+    const { data } = await supabase
+      .from(tabla)
+      .select("id")
+      .eq(campo, valor)
+      .maybeSingle();
+    setCamposVerificando((prev) => ({ ...prev, [campo]: false }));
+    return !!data;
+  }
+
+  function handleRutChange(value) {
+    const formatted = formatRut(value);
+    setFormData((prev) => ({ ...prev, rut: formatted }));
+    if (errores.rut) {
+      setErrores((prev) => {
+        const next = { ...prev };
+        delete next.rut;
+        return next;
+      });
+    }
+  }
+
+  async function validarRut(rut) {
+    const clean = unformatRut(rut);
+    if (!clean) {
+      setErrores((prev) => ({ ...prev, rut: "" }));
+      return;
+    }
+
+    const validation = validateRut(rut);
+    if (!validation.valid) {
+      setErrores((prev) => ({ ...prev, rut: validation.message }));
+      return;
+    }
+
+    const existe = await verificarUnico("pacientes", "rut", clean);
+    if (existe) {
+      setErrores((prev) => ({ ...prev, rut: "Este RUT ya está registrado." }));
+      return;
+    }
+
+    setErrores((prev) => ({ ...prev, rut: "" }));
+  }
+
+  function handleTelefonoChange(value) {
+    const digits = value.replace(/\D/g, "").replace(/^56/, "");
+    const limited = digits.slice(0, 8);
+    setFormData((prev) => ({ ...prev, telefono: limited }));
+    if (errores.telefono) {
+      setErrores((prev) => {
+        const next = { ...prev };
+        delete next.telefono;
+        return next;
+      });
+    }
+  }
+
+  async function validarTelefono(raw) {
+    const completo = `+569${raw}`;
+    if (!raw) {
+      setErrores((prev) => ({ ...prev, telefono: "" }));
+      return;
+    }
+    if (raw.length < 8) {
+      setErrores((prev) => ({ ...prev, telefono: "El teléfono debe tener 8 dígitos." }));
+      return;
+    }
+
+    const existe = await verificarUnico("pacientes", "telefono", completo);
+    if (existe) {
+      setErrores((prev) => ({ ...prev, telefono: "Este teléfono ya está registrado." }));
+      return;
+    }
+
+    setErrores((prev) => ({ ...prev, telefono: "" }));
+  }
+
+  function hayErrores() {
+    return Object.values(errores).some((v) => v !== "");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
@@ -109,12 +194,15 @@ export default function Pacientes() {
         return;
       }
 
+      const rutClean = unformatRut(formData.rut) || null;
+      const telefonoCompleto = formData.telefono ? `+569${formData.telefono}` : null;
+
       const payload = {
         nombre: formData.nombre.trim(),
         apellido: formData.apellido.trim(),
         email: formData.email.trim().toLowerCase(),
-        rut: formData.rut.trim() || null,
-        telefono: formData.telefono.trim() || null,
+        rut: rutClean,
+        telefono: telefonoCompleto,
         prevision_id: formData.prevision_id || null,
         fecha_nacimiento: formData.fecha_nacimiento || null,
       };
@@ -144,6 +232,7 @@ export default function Pacientes() {
         fecha_nacimiento: "",
         email: "",
       });
+      setErrores({});
       fetchData();
     } catch (error) {
       console.error("Error creando paciente:", error);
@@ -294,7 +383,7 @@ export default function Pacientes() {
                   </td>
                   <td className="p-4">{paciente.cantidadCitas}</td>
                   <td className="p-4">
-                    <Link to={`/pacientes/${paciente.id}`}>
+                    <Link to={`/pacientes/${paciente.id}/ficha`}>
                       <Button variant="outline" size="sm">
                         Ver ficha
                       </Button>
@@ -385,22 +474,48 @@ export default function Pacientes() {
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">RUT *</label>
-                <Input
-                  placeholder="Ej: 12345678-9"
-                  value={formData.rut}
-                  onChange={(e) => setFormData({ ...formData, rut: e.target.value })}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="Ej: 12.345.678-9"
+                    value={formData.rut}
+                    onChange={(e) => handleRutChange(e.target.value)}
+                    onBlur={() => validarRut(formData.rut)}
+                    className={errores.rut ? "border-rose-400 focus:border-rose-400" : ""}
+                    required
+                  />
+                  {camposVerificando.rut && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="size-4 animate-spin rounded-full border-2 border-[#2B6CB0] border-t-transparent" />
+                    </div>
+                  )}
+                </div>
+                {errores.rut && (
+                  <p className="text-xs text-rose-500">{errores.rut}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Teléfono</label>
-                <Input
-                  placeholder="Ej: +56912345678"
-                  value={formData.telefono}
-                  onChange={(e) =>
-                    setFormData({ ...formData, telefono: e.target.value })
-                  }
-                />
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 font-medium">
+                    +569
+                  </div>
+                  <Input
+                    placeholder="XXXXXXXX"
+                    value={formData.telefono}
+                    onChange={(e) => handleTelefonoChange(e.target.value)}
+                    onBlur={() => validarTelefono(formData.telefono)}
+                    className={`pl-12 ${errores.telefono ? "border-rose-400 focus:border-rose-400" : ""}`}
+                    maxLength={8}
+                  />
+                  {camposVerificando.telefono && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="size-4 animate-spin rounded-full border-2 border-[#2B6CB0] border-t-transparent" />
+                    </div>
+                  )}
+                </div>
+                {errores.telefono && (
+                  <p className="text-xs text-rose-500">{errores.telefono}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Email *</label>
@@ -452,7 +567,7 @@ export default function Pacientes() {
                 <Button
                   type="submit"
                   className="bg-[#2B6CB0] hover:bg-[#2C5282]"
-                  disabled={saving}
+                  disabled={saving || hayErrores()}
                 >
                   {saving ? "Creando..." : "Crear paciente"}
                 </Button>
