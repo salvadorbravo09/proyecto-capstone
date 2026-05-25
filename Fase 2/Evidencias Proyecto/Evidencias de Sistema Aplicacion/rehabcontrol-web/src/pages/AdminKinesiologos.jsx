@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatRut, unformatRut, validateRut } from "../lib/rut";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
@@ -13,6 +14,8 @@ export default function AdminKinesiologos() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [errores, setErrores] = useState({});
+  const [camposVerificando, setCamposVerificando] = useState({});
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -56,12 +59,112 @@ export default function AdminKinesiologos() {
     }
   }
 
+  async function verificarUnico(tabla, campo, valor) {
+    setCamposVerificando((prev) => ({ ...prev, [campo]: true }));
+    const { data } = await supabase
+      .from(tabla)
+      .select("id")
+      .eq(campo, valor)
+      .maybeSingle();
+    setCamposVerificando((prev) => ({ ...prev, [campo]: false }));
+    return !!data;
+  }
+
+  function handleRutChange(value) {
+    const formatted = formatRut(value);
+    setFormData((prev) => ({ ...prev, rut: formatted }));
+    if (errores.rut) {
+      setErrores((prev) => {
+        const next = { ...prev };
+        delete next.rut;
+        return next;
+      });
+    }
+  }
+
+  async function validarRut(rut) {
+    const clean = unformatRut(rut);
+    if (!clean) {
+      setErrores((prev) => ({ ...prev, rut: "" }));
+      return;
+    }
+
+    const validation = validateRut(rut);
+    if (!validation.valid) {
+      setErrores((prev) => ({ ...prev, rut: validation.message }));
+      return;
+    }
+
+    const existe = await verificarUnico("kinesiologos", "rut", clean);
+    if (existe) {
+      setErrores((prev) => ({ ...prev, rut: "Este RUT ya está registrado." }));
+      return;
+    }
+
+    setErrores((prev) => ({ ...prev, rut: "" }));
+  }
+
+  function handleTelefonoChange(value) {
+    const digits = value.replace(/\D/g, "").replace(/^56/, "");
+    const limited = digits.slice(0, 8);
+    setFormData((prev) => ({ ...prev, telefono: limited }));
+    if (errores.telefono) {
+      setErrores((prev) => {
+        const next = { ...prev };
+        delete next.telefono;
+        return next;
+      });
+    }
+  }
+
+  async function validarTelefono(raw) {
+    const completo = `+569${raw}`;
+    if (!raw) {
+      setErrores((prev) => ({ ...prev, telefono: "" }));
+      return;
+    }
+    if (raw.length < 8) {
+      setErrores((prev) => ({ ...prev, telefono: "El teléfono debe tener 8 dígitos." }));
+      return;
+    }
+
+    const existe = await verificarUnico("kinesiologos", "telefono", completo);
+    if (existe) {
+      setErrores((prev) => ({ ...prev, telefono: "Este teléfono ya está registrado." }));
+      return;
+    }
+
+    setErrores((prev) => ({ ...prev, telefono: "" }));
+  }
+
+  async function validarRegistroMinsal(valor) {
+    if (!valor) {
+      setErrores((prev) => ({ ...prev, registro_minsal: "" }));
+      return;
+    }
+
+    const existe = await verificarUnico("kinesiologos", "registro_minsal", valor);
+    if (existe) {
+      setErrores((prev) => ({ ...prev, registro_minsal: "Este registro MINSAL ya está en uso." }));
+      return;
+    }
+
+    setErrores((prev) => ({ ...prev, registro_minsal: "" }));
+  }
+
+  function hayErrores() {
+    return Object.values(errores).some((v) => v !== "");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
     setErrorMessage("");
 
     try {
+      const rutClean = unformatRut(formData.rut) || null;
+      const telefonoCompleto = formData.telefono ? `+569${formData.telefono}` : null;
+
       const payload = {
         nombre: formData.nombre.trim(),
         apellido: formData.apellido.trim(),
@@ -69,8 +172,8 @@ export default function AdminKinesiologos() {
         password: formData.password.trim(),
         especialidad_id: formData.especialidad_id || null,
         registro_minsal: formData.registro_minsal.trim(),
-        telefono: formData.telefono.trim(),
-        rut: formData.rut.trim(),
+        telefono: telefonoCompleto,
+        rut: rutClean,
       };
 
       const { error } = await supabase.functions.invoke(
@@ -94,6 +197,7 @@ export default function AdminKinesiologos() {
         telefono: "",
         rut: "",
       });
+      setErrores({});
     } catch (error) {
       console.error("Error creando kinesiólogo:", error);
       setErrorMessage(error.message || "No se pudo crear el kinesiólogo.");
@@ -290,37 +394,80 @@ export default function AdminKinesiologos() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm font-medium">Registro MINSAL *</label>
-            <Input
-              placeholder="Ej: REG-12345"
-              value={formData.registro_minsal}
-              onChange={(e) =>
-                setFormData({ ...formData, registro_minsal: e.target.value })
-              }
-              required
-            />
+            <div className="relative">
+              <Input
+                placeholder="Ej: REG-12345"
+                value={formData.registro_minsal}
+                onChange={(e) => {
+                  setFormData({ ...formData, registro_minsal: e.target.value });
+                  if (errores.registro_minsal) {
+                    setErrores((prev) => {
+                      const next = { ...prev };
+                      delete next.registro_minsal;
+                      return next;
+                    });
+                  }
+                }}
+                onBlur={() => validarRegistroMinsal(formData.registro_minsal.trim())}
+                className={errores.registro_minsal ? "border-rose-400 focus:border-rose-400" : ""}
+                required
+              />
+              {camposVerificando.registro_minsal && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="size-4 animate-spin rounded-full border-2 border-[#2B6CB0] border-t-transparent" />
+                </div>
+              )}
+            </div>
+            {errores.registro_minsal && (
+              <p className="text-xs text-rose-500">{errores.registro_minsal}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium">RUT *</label>
-              <Input
-                placeholder="12.345.678-9"
-                value={formData.rut}
-                onChange={(e) =>
-                  setFormData({ ...formData, rut: e.target.value })
-                }
-                required
-              />
+              <div className="relative">
+                <Input
+                  placeholder="Ej: 12.345.678-9"
+                  value={formData.rut}
+                  onChange={(e) => handleRutChange(e.target.value)}
+                  onBlur={() => validarRut(formData.rut)}
+                  className={errores.rut ? "border-rose-400 focus:border-rose-400" : ""}
+                  required
+                />
+                {camposVerificando.rut && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="size-4 animate-spin rounded-full border-2 border-[#2B6CB0] border-t-transparent" />
+                  </div>
+                )}
+              </div>
+              {errores.rut && (
+                <p className="text-xs text-rose-500">{errores.rut}</p>
+              )}
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium">Teléfono *</label>
-              <Input
-                placeholder="+56 9 1234 5678"
-                value={formData.telefono}
-                onChange={(e) =>
-                  setFormData({ ...formData, telefono: e.target.value })
-                }
-                required
-              />
+              <div className="relative">
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 font-medium">
+                  +569
+                </div>
+                <Input
+                  placeholder="XXXXXXXX"
+                  value={formData.telefono}
+                  onChange={(e) => handleTelefonoChange(e.target.value)}
+                  onBlur={() => validarTelefono(formData.telefono)}
+                  className={`pl-12 ${errores.telefono ? "border-rose-400 focus:border-rose-400" : ""}`}
+                  maxLength={8}
+                  required
+                />
+                {camposVerificando.telefono && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="size-4 animate-spin rounded-full border-2 border-[#2B6CB0] border-t-transparent" />
+                  </div>
+                )}
+              </div>
+              {errores.telefono && (
+                <p className="text-xs text-rose-500">{errores.telefono}</p>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-4">
@@ -334,7 +481,7 @@ export default function AdminKinesiologos() {
             <Button
               type="submit"
               className="bg-[#2B6CB0] hover:bg-[#2C5282]"
-              disabled={saving}
+              disabled={saving || hayErrores()}
             >
               {saving ? "Creando..." : "Crear kinesiólogo"}
             </Button>
