@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.rehabcontrol.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,6 +45,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "86ff3865-2c14-41c7-b55d-b52e7d542352"
+      }
     }
   }
 }

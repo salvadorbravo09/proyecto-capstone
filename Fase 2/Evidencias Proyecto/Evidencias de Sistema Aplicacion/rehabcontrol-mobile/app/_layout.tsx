@@ -31,6 +31,8 @@ export default function RootLayout() {
         } else {
           await supabase.auth.signOut();
         }
+      } else {
+        router.replace('/(auth)/login');
       }
       setChecking(false);
     }
