@@ -6,8 +6,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Video, ResizeMode } from "expo-av";
 import { Colors } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 
@@ -26,6 +29,7 @@ type Ejercicio = {
 export default function ExercisesScreen() {
   const [loading, setLoading] = useState(true);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEjercicios();
@@ -58,7 +62,7 @@ export default function ExercisesScreen() {
           )`
         )
         .eq("paciente_id", pacienteData.id)
-        .eq("estado", "activo");
+        .is("fecha_fin", null);
 
       const ejerciciosList: Ejercicio[] = [];
 
@@ -213,12 +217,44 @@ export default function ExercisesScreen() {
                       </Text>
                     </View>
                   </View>
+                  {ejercicio.url_multimedia && (
+                    <TouchableOpacity
+                      style={styles.videoButton}
+                      onPress={() => setVideoUrl(ejercicio.url_multimedia)}
+                    >
+                      <Ionicons name="play-circle" size={18} color="white" />
+                      <Text style={styles.videoButtonText}>Ver demostración</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </Pressable>
             ))}
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={!!videoUrl} transparent animationType="fade">
+        <View style={styles.videoOverlay}>
+          <View style={styles.videoContainer}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setVideoUrl(null)}
+            >
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
+            {videoUrl && (
+              <Video
+                key={videoUrl}
+                source={{ uri: videoUrl }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+                style={styles.video}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -330,5 +366,43 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     color: "#666",
+  },
+  videoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: "#2B6CB0",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  videoButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  videoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoContainer: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    position: "relative",
+  },
+  closeButton: {
+    position: "absolute",
+    top: -40,
+    right: 16,
+    zIndex: 10,
+    padding: 4,
+  },
+  video: {
+    width: "100%",
+    height: "100%",
   },
 });
