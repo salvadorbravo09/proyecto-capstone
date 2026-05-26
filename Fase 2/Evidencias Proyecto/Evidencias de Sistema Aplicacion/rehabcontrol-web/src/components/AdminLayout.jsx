@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { Home, Users, Calendar, UserCog, Settings, LogOut, Shield } from "lucide-react";
+import { Home, Users, Calendar, UserCog, Settings, LogOut, Shield, Dumbbell } from "lucide-react";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -87,6 +87,13 @@ export default function AdminLayout() {
       icon: Calendar, 
       color: "text-amber-400",
       bgHover: "hover:bg-amber-500/10"
+    },
+    { 
+      to: "/admin/ejercicios", 
+      label: "Ejercicios", 
+      icon: Dumbbell, 
+      color: "text-rose-400",
+      bgHover: "hover:bg-rose-500/10"
     },
     { 
       to: "/admin/configuracion", 

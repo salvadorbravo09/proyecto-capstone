@@ -11,6 +11,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminKinesiologos from "./pages/AdminKinesiologos";
 import AdminPacientes from "./pages/AdminPacientes";
 import AdminCitas from "./pages/AdminCitas";
+import AdminEjercicios from "./pages/AdminEjercicios";
 
 export const router = createBrowserRouter([
   {
@@ -66,6 +67,10 @@ export const router = createBrowserRouter([
       {
         path: "citas",
         Component: AdminCitas,
+      },
+      {
+        path: "ejercicios",
+        Component: AdminEjercicios,
       },
       {
         path: "configuracion",

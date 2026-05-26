@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { Link } from "react-router";
-import { ArrowLeft, Calendar, Clock, User, Phone, Mail, CalendarDays, Activity, TrendingUp, Dumbbell, Edit3, Award, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useParams } from "react-router";
+import { ArrowLeft, Calendar, Clock, User, Phone, Mail, CalendarDays, Activity, TrendingUp, Dumbbell, Edit3, Award, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import PrescripcionModal from "../components/PrescripcionModal";
-import { mockPaciente, mockHistorial, mockRutinaActiva, mockBiblioteca, mockEvolucion } from "../data/mockPaciente";
+import { supabase } from "@/lib/supabase";
+import { mockEvolucion } from "../data/mockPaciente";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -15,14 +16,240 @@ const tabs = [
 ];
 
 export default function PacienteFicha() {
+  const { id } = useParams();
   const [activeTab, setActiveTab] = useState("datos");
-  const [rutina, setRutina] = useState(mockRutinaActiva);
+  const [rutina, setRutina] = useState(null);
   const [showPrescripcion, setShowPrescripcion] = useState(false);
+  const [historial, setHistorial] = useState([]);
+  const [historialLoading, setHistorialLoading] = useState(true);
+  const [paciente, setPaciente] = useState(null);
+  const [biblioteca, setBiblioteca] = useState([]);
+  const [loadingPaciente, setLoadingPaciente] = useState(true);
+  const [kinesiologoId, setKinesiologoId] = useState(null);
 
-  const paciente = mockPaciente;
-  const historial = mockHistorial;
-  const biblioteca = mockBiblioteca;
   const evolucion = mockEvolucion;
+
+  useEffect(() => {
+    async function init() {
+      setLoadingPaciente(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: kinData } = await supabase
+          .from("kinesiologos")
+          .select("id")
+          .eq("usuario_id", user.id)
+          .maybeSingle();
+        if (kinData) setKinesiologoId(kinData.id);
+      }
+
+      const { data: pacData } = await supabase
+        .from("pacientes")
+        .select("*, previsiones:prevision_id(nombre)")
+        .eq("id", id)
+        .single();
+
+      if (pacData) {
+        const previsionNombre = pacData.previsiones?.nombre || pacData.prevision || "Sin previsión";
+        setPaciente({
+          id: pacData.id,
+          nombre: pacData.nombre || "",
+          apellido: pacData.apellido || "",
+          rut: pacData.rut || "",
+          email: pacData.email || "",
+          telefono: pacData.telefono || "",
+          fecha_nacimiento: pacData.fecha_nacimiento || "",
+          prevision: previsionNombre,
+        });
+      }
+      setLoadingPaciente(false);
+
+      const { data: ejData } = await supabase
+        .from("ejercicios")
+        .select("*")
+        .order("nombre", { ascending: true });
+      setBiblioteca(ejData || []);
+
+      const { data: planData } = await supabase
+        .from("planes_tratamiento")
+        .select(`
+          id,
+          fecha_inicio,
+          plan_detalle(
+            id,
+            series,
+            repeticiones,
+            frecuencia_diaria,
+            ejercicio:ejercicios(id, nombre, descripcion, parte_cuerpo)
+          )
+        `)
+        .eq("paciente_id", id)
+        .is("fecha_fin", null)
+        .order("fecha_inicio", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (planData) {
+        setRutina({
+          id: planData.id,
+          fecha_inicio: planData.fecha_inicio,
+          ejercicios: (planData.plan_detalle || []).map((pd) => ({
+            _key: crypto.randomUUID(),
+            id: pd.ejercicio.id,
+            nombre: pd.ejercicio.nombre,
+            descripcion: pd.ejercicio.descripcion || "",
+            parte_cuerpo: pd.ejercicio.parte_cuerpo || "",
+            series: pd.series,
+            repeticiones: pd.repeticiones,
+            frecuencia_diaria: pd.frecuencia_diaria,
+          })),
+        });
+      } else {
+        setRutina({
+          id: null,
+          fecha_inicio: new Date().toISOString().split("T")[0],
+          ejercicios: [],
+        });
+      }
+    }
+
+    init();
+  }, [id]);
+
+  useEffect(() => {
+    async function fetchHistorial() {
+      setHistorialLoading(true);
+      const { data, error } = await supabase
+        .from("citas")
+        .select(`
+          id,
+          fecha,
+          hora,
+          motivo_consulta,
+          estados(nombre),
+          kinesiologo:kinesiologos(nombre, apellido)
+        `)
+        .eq("paciente_id", id)
+        .order("fecha", { ascending: false })
+        .order("hora", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching historial:", error);
+        setHistorial([]);
+      } else {
+        setHistorial(
+          (data || []).map((c) => ({
+            id: c.id,
+            fecha: c.fecha,
+            hora: c.hora?.slice(0, 5),
+            motivo: c.motivo_consulta,
+            kinesiologo: [c.kinesiologo?.nombre, c.kinesiologo?.apellido]
+              .filter(Boolean)
+              .join(" "),
+            estado: c.estados?.nombre,
+          })),
+        );
+      }
+      setHistorialLoading(false);
+    }
+
+    fetchHistorial();
+  }, [id]);
+
+  async function handleSaveRutina(nuevaRutina) {
+    if (!kinesiologoId) {
+      console.error("No kinesiologo ID found");
+      return;
+    }
+
+    const planPayload = {
+      paciente_id: id,
+      kinesiologo_id: kinesiologoId,
+      fecha_inicio: nuevaRutina.fecha_inicio || new Date().toISOString().split("T")[0],
+    };
+
+    let planId = nuevaRutina.id;
+
+    if (planId) {
+      await supabase.from("planes_tratamiento").update(planPayload).eq("id", planId);
+    } else {
+      const { data: newPlan } = await supabase
+        .from("planes_tratamiento")
+        .insert([planPayload])
+        .select("id")
+        .single();
+      planId = newPlan?.id;
+    }
+
+    if (!planId) return;
+
+    await supabase.from("plan_detalle").delete().eq("plan_id", planId);
+
+    if (nuevaRutina.ejercicios.length > 0) {
+      const detalles = nuevaRutina.ejercicios.map((ej) => ({
+        plan_id: planId,
+        ejercicio_id: ej.id,
+        series: ej.series,
+        repeticiones: ej.repeticiones,
+        frecuencia_diaria: ej.frecuencia_diaria,
+      }));
+
+      const { error } = await supabase.from("plan_detalle").insert(detalles);
+      if (error) throw error;
+    }
+
+    const { data: refreshedPlan } = await supabase
+      .from("planes_tratamiento")
+      .select(`
+        id,
+        fecha_inicio,
+        plan_detalle(
+          id,
+          series,
+          repeticiones,
+          frecuencia_diaria,
+          ejercicio:ejercicios(id, nombre, descripcion, parte_cuerpo)
+        )
+      `)
+      .eq("id", planId)
+      .single();
+
+    if (refreshedPlan) {
+      setRutina({
+        id: refreshedPlan.id,
+        fecha_inicio: refreshedPlan.fecha_inicio,
+        ejercicios: (refreshedPlan.plan_detalle || []).map((pd) => ({
+          _key: crypto.randomUUID(),
+          id: pd.ejercicio.id,
+          nombre: pd.ejercicio.nombre,
+          descripcion: pd.ejercicio.descripcion || "",
+          parte_cuerpo: pd.ejercicio.parte_cuerpo || "",
+          series: pd.series,
+          repeticiones: pd.repeticiones,
+          frecuencia_diaria: pd.frecuencia_diaria,
+        })),
+      });
+    }
+
+    setShowPrescripcion(false);
+  }
+
+  if (loadingPaciente) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8 flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-[#2B6CB0]" />
+      </div>
+    );
+  }
+
+  if (!paciente) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8 flex items-center justify-center">
+        <p className="text-slate-500">Paciente no encontrado.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -117,7 +344,9 @@ export default function PacienteFicha() {
                   Fecha de nacimiento
                 </div>
                 <p className="font-medium text-slate-900">
-                  {format(parseISO(paciente.fecha_nacimiento), "dd MMMM yyyy", { locale: es })}
+                  {paciente.fecha_nacimiento
+                    ? format(parseISO(paciente.fecha_nacimiento), "dd MMMM yyyy", { locale: es })
+                    : "No registrada"}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
@@ -135,41 +364,59 @@ export default function PacienteFicha() {
         {activeTab === "historial" && (
           <div className="p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-6">Historial de sesiones</h2>
-            <div className="space-y-4">
-              {historial.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">No hay sesiones registradas.</p>
-              ) : (
-                historial.map((sesion) => (
-                  <div
-                    key={sesion.id}
-                    className="relative rounded-xl border border-slate-200 bg-white p-4 pl-8 before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200 before:-translate-x-1/2 before:last:hidden"
-                  >
-                    <div className="absolute left-4 top-4 size-3 -translate-x-1/2 rounded-full bg-[#2B6CB0] ring-4 ring-white" />
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                      <div>
-                        <p className="font-medium text-slate-900">{sesion.motivo}</p>
-                        <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="size-3.5" />
-                            {format(parseISO(sesion.fecha), "dd MMM yyyy", { locale: es })}
+            {historialLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="size-6 animate-spin text-[#2B6CB0]" />
+              </div>
+            ) : historial.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-8">No hay sesiones registradas.</p>
+            ) : (
+              <div className="space-y-4">
+                {historial.map((sesion) => {
+                  const estadoColor =
+                    sesion.estado === "asistida"
+                      ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                      : sesion.estado === "cancelada"
+                        ? "bg-rose-50 text-rose-600 border-rose-200"
+                        : "bg-sky-50 text-sky-600 border-sky-200";
+                  return (
+                    <div
+                      key={sesion.id}
+                      className="relative rounded-xl border border-slate-200 bg-white p-4 pl-8 before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200 before:-translate-x-1/2 before:last:hidden"
+                    >
+                      <div className="absolute left-4 top-4 size-3 -translate-x-1/2 rounded-full bg-[#2B6CB0] ring-4 ring-white" />
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-slate-900">{sesion.motivo || "Sin motivo"}</p>
+                          <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="size-3.5" />
+                              {format(parseISO(sesion.fecha), "dd MMM yyyy", { locale: es })}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="size-3.5" />
+                              {sesion.hora}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 whitespace-nowrap">
+                            {sesion.kinesiologo}
                           </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="size-3.5" />
-                            {sesion.hora}
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap ${estadoColor}`}>
+                            {sesion.estado === "asistida"
+                              ? "Asistida"
+                              : sesion.estado === "cancelada"
+                                ? "Cancelada"
+                                : "Agendada"}
                           </span>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 whitespace-nowrap">
-                        {sesion.kinesiologo}
-                      </span>
                     </div>
-                    <p className="text-sm text-slate-600 mt-2 border-t border-slate-100 pt-2">
-                      {sesion.notas}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -180,7 +427,9 @@ export default function PacienteFicha() {
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Rutina activa</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Desde el {format(parseISO(rutina.fecha_inicio), "dd MMM yyyy", { locale: es })}
+                  {rutina?.fecha_inicio
+                    ? `Desde el ${format(parseISO(rutina.fecha_inicio), "dd MMM yyyy", { locale: es })}`
+                    : "Sin rutina asignada"}
                 </p>
               </div>
               <Button
@@ -192,7 +441,7 @@ export default function PacienteFicha() {
               </Button>
             </div>
 
-            {rutina.ejercicios.length === 0 ? (
+            {!rutina || rutina.ejercicios.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <Dumbbell className="size-12 mb-3 opacity-50" />
                 <p className="text-sm font-medium text-slate-500">Sin ejercicios asignados</p>
@@ -202,7 +451,7 @@ export default function PacienteFicha() {
               <div className="space-y-3">
                 {rutina.ejercicios.map((ej, index) => (
                   <div
-                    key={ej.id}
+                    key={ej._key}
                     className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -300,15 +549,12 @@ export default function PacienteFicha() {
       </div>
 
       {/* Prescripcion Modal */}
-      {showPrescripcion && (
+      {showPrescripcion && rutina && (
         <PrescripcionModal
           paciente={paciente}
           rutina={rutina}
           biblioteca={biblioteca}
-          onSave={(nuevaRutina) => {
-            setRutina(nuevaRutina);
-            setShowPrescripcion(false);
-          }}
+          onSave={handleSaveRutina}
           onClose={() => setShowPrescripcion(false)}
         />
       )}

@@ -57,10 +57,10 @@ export default function PrescripcionModal({ paciente, rutina, biblioteca, onSave
     );
   }
 
-  function handleGuardar() {
+  async function handleGuardar() {
     setSaving(true);
-    setTimeout(() => {
-      onSave({
+    try {
+      await onSave({
         id: rutina.id,
         fecha_inicio: rutina.fecha_inicio,
         ejercicios: ejerciciosSeleccionados.map((ej) => ({
@@ -73,7 +73,11 @@ export default function PrescripcionModal({ paciente, rutina, biblioteca, onSave
           frecuencia_diaria: ej.frecuencia_diaria,
         })),
       });
-    }, 600);
+    } catch (error) {
+      console.error("Error saving routine:", error);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
