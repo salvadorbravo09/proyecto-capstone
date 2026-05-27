@@ -123,7 +123,7 @@ La aplicación móvil permitirá:
 | **Supabase** | Backend y autenticación |
 | **React Navigation** | Navegación entre pantallas |
 
----
+-----
 
 ## 🚀 Instalación Aplicación Móvil
 
