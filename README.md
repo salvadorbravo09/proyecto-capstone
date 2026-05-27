@@ -99,4 +99,60 @@ npm run dev
 
 La aplicación estará disponible en `http://localhost:5173`
 
+---
+
+# 📱 Aplicación Móvil - React Native
+
+Además de la plataforma web, el proyecto cuenta con una aplicación móvil desarrollada en **React Native**, enfocada en facilitar el acceso a información clínica y seguimiento terapéutico desde dispositivos móviles.
+
+La aplicación móvil permitirá:
+- Visualización de citas y horarios
+- Seguimiento de tratamientos
+- Consulta de ejercicios terapéuticos
+- Acceso rápido a información del paciente
+- Compatibilidad multiplataforma (Android e iOS)
+
+---
+
+## 🛠️ Tecnologías Utilizadas en Mobile
+
+| Tecnología | Propósito |
+|-----------|----------|
+| **React Native** | Desarrollo móvil multiplataforma |
+| **Expo** | Entorno de desarrollo y compilación |
+| **Supabase** | Backend y autenticación |
+| **React Navigation** | Navegación entre pantallas |
+
+---
+
+## 🚀 Instalación Aplicación Móvil
+
+### Requisitos Previos
+
+- **Node.js** >= 18
+- **Expo CLI**
+- **Android Studio** o **Expo Go**
+- Dispositivo Android/iOS o emulador
+
+### Acceder al Proyecto Mobile
+
+```bash
+cd Fase 2/Evidencias Proyecto/Evidencias de Sistema Aplicacion/rehabcontrol-mobile
+```
+
+### Configurar Variables de Entorno
+
+Crea un archivo `.env` en la carpeta `rehabcontrol-mobile` con las credenciales de Supabase:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+### Iniciar la aplicacion movil
+
+```bash
+npx expo start
+```
+
 **Última actualización:** Mayo 2026 | **Versión:** 1.0.0
