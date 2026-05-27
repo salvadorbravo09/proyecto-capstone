@@ -156,7 +156,6 @@ npx expo start
 ```
 
 Luego:
-
 - Presiona a para abrir Android
 - Presiona w para abrir versión web
 - Escanea el QR con Expo Go desde tu celular
