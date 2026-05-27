@@ -99,7 +99,7 @@ npm run dev
 
 La aplicación estará disponible en `http://localhost:5173`
 
------
+---
 
 # 📱 Aplicación Móvil - React Native
 
