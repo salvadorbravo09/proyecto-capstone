@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?><project name="RehabControl-V3-Scrum" company="" webLink="http://" view-date="2026-03-30" view-index="0" gantt-divider-location="479" resource-divider-location="300" version="3.3.3316" locale="es_ES">
+<?xml version="1.0" encoding="UTF-8"?><project name="RehabControl-V3-Scrum" company="" webLink="http://" view-date="2026-05-04" view-index="0" gantt-divider-location="464" resource-divider-location="300" version="3.3.3316" locale="es_ES">
     <description/>
     <view zooming-state="default:4" id="gantt-chart">
-        <field id="tpd3" name="Nombre" width="353" order="0"/>
-        <field id="tpd4" name="Fecha de inicio" width="24" order="1"/>
-        <field id="tpd5" name="Fecha de fin" width="86" order="2"/>
+        <field id="tpd3" name="Nombre" width="342" order="0"/>
+        <field id="tpd4" name="Fecha de inicio" width="23" order="1"/>
+        <field id="tpd5" name="Fecha de fin" width="83" order="2"/>
         <field id="tpd15" name="Notas" width="20" order="3"/>
         <option id="filter.completedTasks" value="false"/>
         <option id="filter.dueTodayTasks" value="false"/>
@@ -94,6 +94,7 @@
             </task>
             <task id="8" uid="3488b482d78746b182c5158f0b9b9a9e" name="Sprint 1" meeting="false" start="2026-04-07" duration="18" complete="0" expand="true">
                 <depend id="11" type="2" difference="0" hardness="Strong"/>
+                <task id="119" uid="e47bb7fe4a2e4358a082815f954058f7" name="Sprint Planning" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
                 <task id="54" uid="e5e58bb4a6b54d72a8c6f430b971c8fc" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
                 <task id="32" uid="688e6c356076482ab374a474696b6acd" name="05 plantilla_sprint_backlog_actividades_horas" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
                 <task id="61" uid="1478c363c47e40d88ec97b449efcf7a5" name="Diseñar modelo de datos" meeting="false" start="2026-04-07" duration="2" complete="0" expand="true"/>
@@ -112,6 +113,7 @@
             </task>
             <task id="11" uid="cc1febbf24294d9b83ce5b3524456d26" name="Sprint 2" meeting="false" start="2026-04-27" duration="11" complete="0" expand="true">
                 <depend id="14" type="2" difference="0" hardness="Strong"/>
+                <task id="120" uid="74f072c9416641f18eab13c3aa741cab" name="Sprint Planning" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
                 <task id="64" uid="b1d9e4e3d63c4016b6feaa3f66af88a9" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
                 <task id="38" uid="46118ca6204d46d1b202ad2bb9ac2d69" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-04-27" duration="1" complete="0" expand="true"/>
                 <task id="67" uid="513c7ee0a26b499ea3ccb616d74f7e6b" name="Creacion de citas" meeting="false" start="2026-04-28" duration="10" complete="0" expand="true"/>
@@ -126,6 +128,7 @@
             </task>
             <task id="14" uid="4a5c3b4ef3264342ad4a88dd5a646930" name="Sprint 3" meeting="false" start="2026-05-11" duration="11" complete="0" expand="true">
                 <depend id="17" type="2" difference="0" hardness="Strong"/>
+                <task id="121" uid="900b65d865454c15a850706b8adc7c7a" name="Sprint Planning" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
                 <task id="70" uid="b50bc146b6a04e64bb7350021ec5e9e1" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
                 <task id="44" uid="cb20a755943d4f13bb6eddc0f6f8a0fc" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-05-11" duration="1" complete="0" expand="true"/>
                 <task id="76" uid="3dd67b9ee4eb427f8f398fe6a3116021" name="Listado y busqueda de pacientes" meeting="false" start="2026-05-12" duration="10" complete="0" expand="true"/>
@@ -142,6 +145,7 @@
             </task>
             <task id="17" uid="b6d576e892f644058a1d7b0496221732" name="Sprint 4" meeting="false" start="2026-05-25" duration="12" complete="0" expand="true">
                 <depend id="20" type="2" difference="0" hardness="Strong"/>
+                <task id="122" uid="1329d5f420fb4ca8a930e3c020f2d643" name="Sprint Planning" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
                 <task id="77" uid="230d725294754807bff3ddb8c49db218" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
                 <task id="50" uid="e6e86a8c2d3a4e978b50afc1bb2b0077" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-05-25" duration="1" complete="0" expand="true"/>
                 <task id="78" uid="a290f558b08f457d80e1cb6b731d8be8" name="Creacion ejercicios" meeting="false" start="2026-05-26" duration="11" complete="0" expand="true"/>
@@ -155,6 +159,7 @@
             </task>
             <task id="20" uid="70b8914013904eef87948b723e76087a" name="Sprint 5" meeting="false" start="2026-06-08" duration="12" complete="0" expand="true">
                 <depend id="91" type="2" difference="0" hardness="Strong"/>
+                <task id="123" uid="e4e416c16b5a4ffcafb0ba1cef664257" name="Sprint Planning" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
                 <task id="81" uid="c8618ebdb6084f1293e3a3ad9c31004f" name="04 plantilla_product_backlog_puntos_historia" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
                 <task id="83" uid="c0ecd64c2cac406099871bf6708bb3eb" name="05 plantilla_sprint_backlog_actividades_horas" color="#8cb6ce" meeting="false" start="2026-06-08" duration="1" complete="0" expand="true"/>
                 <task id="90" uid="529ae2e0435b4d3385c6a42dd3c4bcea" name="Notificaciones de citas" meeting="false" start="2026-06-09" duration="10" complete="0" expand="true"/>
