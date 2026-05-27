@@ -148,16 +148,18 @@ Crea un archivo `.env` en la carpeta `rehabcontrol-mobile` con las credenciales 
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
 ```
-Luego:
-
-- Presiona a para abrir Android
-- Presiona w para abrir versión web
-- Escanea el QR con Expo Go desde tu celular
 
 ### Iniciar la aplicacion movil
 
 ```bash
 npx expo start
 ```
+
+Luego:
+
+- Presiona a para abrir Android
+- Presiona w para abrir versión web
+- Escanea el QR con Expo Go desde tu celular
+
 
 **Última actualización:** Mayo 2026 | **Versión:** 1.0.0
