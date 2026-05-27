@@ -112,7 +112,7 @@ La aplicación móvil permitirá:
 - Acceso rápido a información del paciente
 - Compatibilidad multiplataforma (Android e iOS)
 
----
+-----
 
 ## 🛠️ Tecnologías Utilizadas en Mobile
 
