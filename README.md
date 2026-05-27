@@ -19,7 +19,6 @@ Sistema de gestión clínica diseñado para facilitar la administración de clí
 - 👥 **Gestión de usuarios** - Administración de clínicas, kinesiólogos y pacientes
 - 
 - 📅 **Sistema de citas** - Agenda integrada de atenciones
-- 
 - 📋 **Fichas clínicas** - Registros detallados de evaluación
 - 🏋️ **Catálogo de ejercicios** - Ejercicios terapéuticos con multimedia
 - 📊 **Planes de tratamiento** - Prescripción personalizada por paciente
