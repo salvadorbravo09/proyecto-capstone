@@ -67,7 +67,7 @@ cd proyecto-capstone
 Accede a la carpeta del frontend:
 
 ```bash
-cd "Fase 2/Evidencias Proyecto/Evidencias de Sistema Aplicacion/frontend"
+cd "Fase 2/Evidencias Proyecto/Evidencias de Sistema Aplicacion/rehabcontrol-web"
 ```
 
 Instala las dependencias:
