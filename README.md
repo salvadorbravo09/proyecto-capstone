@@ -23,6 +23,7 @@ Sistema de gestión clínica diseñado para facilitar la administración de clí
 - 📋 **Fichas clínicas** - Registros detallados de evaluación
 - 
 - 🏋️ **Catálogo de ejercicios** - Ejercicios terapéuticos con multimedia
+- 
 - 📊 **Planes de tratamiento** - Prescripción personalizada por paciente
 - 📈 **Seguimiento de progreso** - Monitoreo de evolución del paciente
 - 🎨 **Interfaz moderna** - Diseño responsivo con Tailwind CSS y shadcn/ui
