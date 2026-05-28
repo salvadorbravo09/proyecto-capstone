@@ -1,5 +1,5 @@
 -- Generado por Oracle SQL Developer Data Modeler 24.3.1.351.0831
---   en:        2026-05-11 23:03:20 CLT
+--   en:        2026-05-27 20:15:17 CLT
 --   sitio:      Oracle Database 21c
 --   tipo:      Oracle Database 21c
 
@@ -9,222 +9,473 @@
 
 -- predefined type, no DDL - XMLTYPE
 
-CREATE TABLE "PUBLIC".citas 
+CREATE TABLE atenciones 
     ( 
-     id              INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     paciente_id     INTEGER , 
-     kinesiologo_id  INTEGER , 
-     fecha           DATE  NOT NULL , 
-     hora            DATE  NOT NULL , 
-     estado          VARCHAR2 (80) DEFAULT 'agendada' , 
-     motivo_consulta VARCHAR2 (30) 
+     id                 INTEGER  NOT NULL , 
+     ficha_id           INTEGER  NOT NULL , 
+     cita_id            INTEGER , 
+     kinesiologo_id     INTEGER  NOT NULL , 
+     fecha              DATE DEFAULT CURRENT_DATE  NOT NULL , 
+     detalle_ejercicios VARCHAR2 (250)  NOT NULL , 
+     plan_ejercicios    VARCHAR2 (250)  NOT NULL , 
+     created_at         DATE DEFAULT now()  NOT NULL 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".citas 
+ALTER TABLE atenciones 
+    ADD CONSTRAINT atenciones_PK PRIMARY KEY ( id ) ;
+
+ALTER TABLE atenciones 
+    ADD CONSTRAINT atenciones_cita_id_key UNIQUE ( cita_id ) ;
+
+CREATE TABLE citas 
+    ( 
+     id              INTEGER  NOT NULL , 
+     paciente_id     INTEGER  NOT NULL , 
+     kinesiologo_id  INTEGER  NOT NULL , 
+     fecha           DATE  NOT NULL , 
+     hora            TIMESTAMP WITH TIME ZONE  NOT NULL , 
+     motivo_consulta VARCHAR2 (255) , 
+     estado_id       INTEGER  NOT NULL 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE citas 
     ADD CONSTRAINT citas_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".ejercicios 
+CREATE TABLE ejercicios 
     ( 
-     id                  INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
+     id                  INTEGER  NOT NULL , 
      kinesiologo_creador INTEGER , 
-     nombre              VARCHAR2 (30)  NOT NULL , 
-     descripcion         VARCHAR2 (60) , 
-     url_multimedia      VARCHAR2 (100) , 
-     parte_cuerpo        VARCHAR2 (30) 
+     nombre              VARCHAR2 (255)  NOT NULL , 
+     descripcion         VARCHAR2 (255) , 
+     url_multimedia      VARCHAR2 (255) , 
+     parte_cuerpo        VARCHAR2 (255) 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".ejercicios 
+ALTER TABLE ejercicios 
     ADD CONSTRAINT ejercicios_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".fichas_clinicas 
+CREATE TABLE especialidades 
     ( 
-     id              INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     paciente_id     INTEGER  NOT NULL , 
-     kinesiologo_id  INTEGER , 
-     fecha_atencion  TIMESTAMP WITH TIME ZONE DEFAULT now() , 
-     diagnostico     VARCHAR2 (100)  NOT NULL , 
-     notas_evolucion VARCHAR2 (100) 
+     id          INTEGER  NOT NULL , 
+     nombre      VARCHAR2 (255)  NOT NULL , 
+     descripcion VARCHAR2 (255) 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".fichas_clinicas 
+ALTER TABLE especialidades 
+    ADD CONSTRAINT especialidades_PK PRIMARY KEY ( id ) ;
+
+ALTER TABLE especialidades 
+    ADD CONSTRAINT especialidades_nombre_key UNIQUE ( nombre ) ;
+
+CREATE TABLE estado_historial 
+    ( 
+     id           INTEGER  NOT NULL , 
+     entidad_tipo VARCHAR2 (255)  NOT NULL , 
+     entidad_id   INTEGER  NOT NULL , 
+     estado_id    INTEGER  NOT NULL , 
+     cambio_fecha DATE DEFAULT now()  NOT NULL , 
+     comentario   VARCHAR2 (255)  NOT NULL , 
+     actor_id     INTEGER 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE estado_historial 
+    ADD CONSTRAINT estado_historial_PK PRIMARY KEY ( id ) ;
+
+CREATE TABLE estados 
+    ( 
+     id          INTEGER  NOT NULL , 
+     nombre      VARCHAR2 (255)  NOT NULL , 
+     entidad     VARCHAR2 (255)  NOT NULL , 
+     descripcion VARCHAR2 (255) 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE estados 
+    ADD CONSTRAINT estados_PK PRIMARY KEY ( id ) ;
+
+ALTER TABLE estados 
+    ADD CONSTRAINT estados_nombre_entidad_key UNIQUE ( nombre , entidad ) ;
+
+CREATE TABLE fichas 
+    ( 
+     id                 INTEGER  NOT NULL , 
+     paciente_id        INTEGER  NOT NULL , 
+     motivo_tratamiento VARCHAR2 (255) , 
+     fecha_inicio       DATE DEFAULT CURRENT_DATE  NOT NULL , 
+     fecha_cierre       DATE , 
+     created_at         DATE DEFAULT now()  NOT NULL 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE fichas 
+    ADD CONSTRAINT fichas_PK PRIMARY KEY ( id ) ;
+
+CREATE TABLE fichas_clinicas 
+    ( 
+     id              INTEGER  NOT NULL , 
+     paciente_id     INTEGER  NOT NULL , 
+     kinesiologo_id  INTEGER  NOT NULL , 
+     fecha_atencion  DATE DEFAULT now()  NOT NULL , 
+     diagnostico     VARCHAR2 (255)  NOT NULL , 
+     notas_evolucion VARCHAR2 (255) 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE fichas_clinicas 
     ADD CONSTRAINT fichas_clinicas_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE "PUBLIC".fichas_clinicas 
-    ADD CONSTRAINT INDEX_1 UNIQUE ( paciente_id ) ;
-
-CREATE TABLE "PUBLIC".kinesiologos 
+CREATE TABLE kinesiologos 
     ( 
-     id              INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
+     id              INTEGER  NOT NULL , 
      usuario_id      INTEGER , 
-     nombre_completo VARCHAR2 (50)  NOT NULL , 
-     especialidad    VARCHAR2 (30) , 
-     registro_minsal VARCHAR2 (40) , 
-     clinica_id      CHAR 
---  WARNING: CHAR size not specified 
-                     NOT NULL 
+     registro_minsal VARCHAR2 (255) , 
+     nombre          VARCHAR2 (255)  NOT NULL , 
+     apellido        VARCHAR2 (255)  NOT NULL , 
+     telefono        VARCHAR2 (255) , 
+     rut             VARCHAR2 (255) , 
+     especialidad_id INTEGER 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".kinesiologos 
+ALTER TABLE kinesiologos 
     ADD CONSTRAINT kinesiologos_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".pacientes 
+ALTER TABLE kinesiologos 
+    ADD CONSTRAINT kinesiologos_registro_minsal_key UNIQUE ( registro_minsal ) ;
+
+ALTER TABLE kinesiologos 
+    ADD CONSTRAINT kinesiologos_rut_key UNIQUE ( rut ) ;
+
+ALTER TABLE kinesiologos 
+    ADD CONSTRAINT kinesiologos_usuario_id_key UNIQUE ( usuario_id ) ;
+
+CREATE TABLE notificaciones 
     ( 
-     id               INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     usuario_id       INTEGER , 
-     rut              VARCHAR2 (30)  NOT NULL , 
-     nombre_completo  VARCHAR2 (50)  NOT NULL , 
-     fecha_nacimiento DATE , 
-     telefono         VARCHAR2 (30) , 
-     prevision        VARCHAR2 (30) 
+     id             INTEGER  NOT NULL , 
+     kinesiologo_id INTEGER , 
+     paciente_id    INTEGER , 
+     tipo           VARCHAR2 (255) DEFAULT 'registro_paciente'  NOT NULL , 
+     mensaje        VARCHAR2 (255) , 
+     leida          NUMBER  NOT NULL , 
+     confirmada     NUMBER  NOT NULL , 
+     created_at     DATE DEFAULT now()  NOT NULL 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".pacientes 
+ALTER TABLE notificaciones 
+    ADD CONSTRAINT notificaciones_PK PRIMARY KEY ( id ) ;
+
+CREATE TABLE pacientes 
+    ( 
+     id                      INTEGER  NOT NULL , 
+     usuario_id              INTEGER , 
+     rut                     VARCHAR2 (255)  NOT NULL , 
+     nombre                  VARCHAR2 (255) , 
+     fecha_nacimiento        DATE , 
+     telefono                VARCHAR2 (255) , 
+     apellido                VARCHAR2 (255) , 
+     email                   VARCHAR2 (255) , 
+     kinesiologo_asignado_id INTEGER , 
+     prevision_id            INTEGER 
+    ) 
+    LOGGING 
+;
+
+ALTER TABLE pacientes 
     ADD CONSTRAINT pacientes_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".plan_detalle 
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_email_key UNIQUE ( email ) ;
+
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_rut_key UNIQUE ( rut ) ;
+
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_usuario_id_key UNIQUE ( usuario_id ) ;
+
+CREATE TABLE plan_detalle 
     ( 
-     id                INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     plan_id           INTEGER , 
-     ejercicio_id      INTEGER , 
+     id                INTEGER  NOT NULL , 
+     plan_id           INTEGER  NOT NULL , 
+     ejercicio_id      INTEGER  NOT NULL , 
      series            INTEGER  NOT NULL , 
      repeticiones      INTEGER  NOT NULL , 
-     frecuencia_diaria INTEGER DEFAULT 1 
+     frecuencia_diaria INTEGER DEFAULT 1  NOT NULL 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".plan_detalle 
+ALTER TABLE plan_detalle 
+    ADD CONSTRAINT plan_detalle_frecuencia_diaria_check 
+    CHECK (frecuencia_diaria > 0)
+;
+
+
+ALTER TABLE plan_detalle 
+    ADD CONSTRAINT plan_detalle_repeticiones_check 
+    CHECK (repeticiones > 0)
+;
+
+
+ALTER TABLE plan_detalle 
+    ADD CONSTRAINT plan_detalle_series_check 
+    CHECK (series > 0)
+;
+ALTER TABLE plan_detalle 
     ADD CONSTRAINT plan_detalle_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".planes_tratamiento 
+CREATE TABLE planes_tratamiento 
     ( 
-     id                   INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     paciente_id          INTEGER , 
-     kinesiologo_id       INTEGER , 
-     fecha_inicio         DATE DEFAULT CURRENT_DATE , 
+     id                   INTEGER  NOT NULL , 
+     paciente_id          INTEGER  NOT NULL , 
+     kinesiologo_id       INTEGER  NOT NULL , 
+     fecha_inicio         DATE DEFAULT CURRENT_DATE  NOT NULL , 
      fecha_fin            DATE , 
-     estado               VARCHAR2 (30) DEFAULT 'activo' , 
-     objetivo_terapeutico VARCHAR2 (40) 
+     objetivo_terapeutico VARCHAR2 (255) 
     ) 
     LOGGING 
 ;
-CREATE UNIQUE INDEX "PUBLIC".uq_plan_activo_por_paciente ON "PUBLIC".planes_tratamiento 
-    ( 
-     paciente_id ASC 
-    ) 
-;
 
-ALTER TABLE "PUBLIC".planes_tratamiento 
+ALTER TABLE planes_tratamiento 
     ADD CONSTRAINT planes_tratamiento_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".seguimiento_progreso 
+CREATE TABLE previsiones 
     ( 
-     id              INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     plan_detalle_id INTEGER , 
-     fecha_registro  TIMESTAMP WITH TIME ZONE DEFAULT now() , 
-     completado      VARCHAR2 (30) , 
-     nivel_dolor     INTEGER 
+     id          INTEGER  NOT NULL , 
+     nombre      VARCHAR2 (255)  NOT NULL , 
+     descripcion VARCHAR2 (255) 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".seguimiento_progreso 
-    ADD 
-    CHECK (nivel_dolor >= 1 AND nivel_dolor <= 10) 
+ALTER TABLE previsiones 
+    ADD CONSTRAINT previsiones_PK PRIMARY KEY ( id ) ;
+
+ALTER TABLE previsiones 
+    ADD CONSTRAINT previsiones_nombre_key UNIQUE ( nombre ) ;
+
+CREATE TABLE seguimiento_progreso 
+    ( 
+     id              INTEGER  NOT NULL , 
+     plan_detalle_id INTEGER  NOT NULL , 
+     fecha_registro  DATE DEFAULT now()  NOT NULL , 
+     completado      NUMBER  NOT NULL , 
+     nivel_dolor     INTEGER  NOT NULL 
+    ) 
+    LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".seguimiento_progreso 
+ALTER TABLE seguimiento_progreso 
+    ADD CONSTRAINT seguimiento_progreso_nivel_dolor_check 
+    CHECK (nivel_dolor >= 1 AND nivel_dolor <= 10)
+;
+ALTER TABLE seguimiento_progreso 
     ADD CONSTRAINT seguimiento_progreso_PK PRIMARY KEY ( id ) ;
 
-CREATE TABLE "PUBLIC".usuarios 
+CREATE TABLE usuarios 
     ( 
-     id         INTEGER DEFAULT gen_random_uuid()  NOT NULL , 
-     email      VARCHAR2 (30)  NOT NULL , 
-     rol        VARCHAR2 (30)  NOT NULL , 
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() 
+     id         INTEGER  NOT NULL , 
+     email      VARCHAR2 (255)  NOT NULL , 
+     rol        VARCHAR2 (255) DEFAULT 'paciente'  NOT NULL , 
+     created_at DATE DEFAULT now()  NOT NULL 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE "PUBLIC".usuarios 
+ALTER TABLE usuarios 
     ADD CONSTRAINT usuarios_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE "PUBLIC".citas 
-    ADD CONSTRAINT citas_FK0 FOREIGN KEY 
+ALTER TABLE usuarios 
+    ADD CONSTRAINT usuarios_email_key UNIQUE ( email ) ;
+
+ALTER TABLE atenciones 
+    ADD CONSTRAINT atenciones_cita_id_fkey FOREIGN KEY 
     ( 
-     paciente_id
+     cita_id
     ) 
-    REFERENCES "PUBLIC".pacientes 
+    REFERENCES citas 
     ( 
      id
     ) 
+    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".citas 
-    ADD CONSTRAINT citas_FK1 FOREIGN KEY 
+ALTER TABLE atenciones 
+    ADD CONSTRAINT atenciones_ficha_id_fkey FOREIGN KEY 
+    ( 
+     ficha_id
+    ) 
+    REFERENCES fichas 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE atenciones 
+    ADD CONSTRAINT atenciones_kinesiologo_id_fkey FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
-    REFERENCES "PUBLIC".kinesiologos 
+    REFERENCES kinesiologos 
     ( 
      id
     ) 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".ejercicios 
-    ADD CONSTRAINT ejercicios_FK0 FOREIGN KEY 
+ALTER TABLE citas 
+    ADD CONSTRAINT citas_estado_id_fkey FOREIGN KEY 
+    ( 
+     estado_id
+    ) 
+    REFERENCES estados 
+    ( 
+     id
+    ) 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE citas 
+    ADD CONSTRAINT citas_kinesiologo_id_fkey FOREIGN KEY 
+    ( 
+     kinesiologo_id
+    ) 
+    REFERENCES kinesiologos 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE citas 
+    ADD CONSTRAINT citas_paciente_id_fkey FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE ejercicios 
+    ADD CONSTRAINT ejercicios_kinesiologo_creador_fkey FOREIGN KEY 
     ( 
      kinesiologo_creador
     ) 
-    REFERENCES "PUBLIC".kinesiologos 
+    REFERENCES kinesiologos 
     ( 
      id
     ) 
+    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".fichas_clinicas 
-    ADD CONSTRAINT fichas_clinicas_FK0 FOREIGN KEY 
+ALTER TABLE estado_historial 
+    ADD CONSTRAINT estado_historial_actor_id_fkey FOREIGN KEY 
     ( 
-     paciente_id
+     actor_id
     ) 
-    REFERENCES "PUBLIC".pacientes 
+    REFERENCES kinesiologos 
     ( 
      id
     ) 
+    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".fichas_clinicas 
-    ADD CONSTRAINT fichas_clinicas_FK1 FOREIGN KEY 
+ALTER TABLE estado_historial 
+    ADD CONSTRAINT estado_historial_estado_id_fkey FOREIGN KEY 
+    ( 
+     estado_id
+    ) 
+    REFERENCES estados 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE fichas_clinicas 
+    ADD CONSTRAINT fichas_clinicas_kinesiologo_id_fkey FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
-    REFERENCES "PUBLIC".kinesiologos 
+    REFERENCES kinesiologos 
     ( 
      id
     ) 
+    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".kinesiologos 
-    ADD CONSTRAINT kinesiologos_FK0 FOREIGN KEY 
+ALTER TABLE fichas_clinicas 
+    ADD CONSTRAINT fichas_clinicas_paciente_id_fkey FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE fichas 
+    ADD CONSTRAINT fichas_paciente_id_fkey FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE kinesiologos 
+    ADD CONSTRAINT kinesiologos_especialidad_id_fkey FOREIGN KEY 
+    ( 
+     especialidad_id
+    ) 
+    REFERENCES especialidades 
+    ( 
+     id
+    ) 
+    ON DELETE SET NULL 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE kinesiologos 
+    ADD CONSTRAINT kinesiologos_usuario_id_fkey FOREIGN KEY 
     ( 
      usuario_id
     ) 
-    REFERENCES "PUBLIC".usuarios 
+    REFERENCES usuarios 
     ( 
      id
     ) 
@@ -232,12 +483,64 @@ ALTER TABLE "PUBLIC".kinesiologos
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".pacientes 
-    ADD CONSTRAINT pacientes_FK0 FOREIGN KEY 
+ALTER TABLE notificaciones 
+    ADD CONSTRAINT notificaciones_kinesiologo_id_fkey FOREIGN KEY 
+    ( 
+     kinesiologo_id
+    ) 
+    REFERENCES kinesiologos 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE notificaciones 
+    ADD CONSTRAINT notificaciones_paciente_id_fkey FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_kinesiologo_asignado_id_fkey FOREIGN KEY 
+    ( 
+     kinesiologo_asignado_id
+    ) 
+    REFERENCES kinesiologos 
+    ( 
+     id
+    ) 
+    ON DELETE SET NULL 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_prevision_id_fkey FOREIGN KEY 
+    ( 
+     prevision_id
+    ) 
+    REFERENCES previsiones 
+    ( 
+     id
+    ) 
+    ON DELETE SET NULL 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE pacientes 
+    ADD CONSTRAINT pacientes_usuario_id_fkey FOREIGN KEY 
     ( 
      usuario_id
     ) 
-    REFERENCES "PUBLIC".usuarios 
+    REFERENCES usuarios 
     ( 
      id
     ) 
@@ -245,61 +548,64 @@ ALTER TABLE "PUBLIC".pacientes
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".plan_detalle 
-    ADD CONSTRAINT plan_detalle_FK0 FOREIGN KEY 
-    ( 
-     plan_id
-    ) 
-    REFERENCES "PUBLIC".planes_tratamiento 
-    ( 
-     id
-    ) 
-    ON DELETE CASCADE 
-    NOT DEFERRABLE 
-;
-
-ALTER TABLE "PUBLIC".plan_detalle 
-    ADD CONSTRAINT plan_detalle_FK1 FOREIGN KEY 
+ALTER TABLE plan_detalle 
+    ADD CONSTRAINT plan_detalle_ejercicio_id_fkey FOREIGN KEY 
     ( 
      ejercicio_id
     ) 
-    REFERENCES "PUBLIC".ejercicios 
+    REFERENCES ejercicios 
     ( 
      id
     ) 
+    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".planes_tratamiento 
-    ADD CONSTRAINT planes_tratamiento_FK0 FOREIGN KEY 
+ALTER TABLE plan_detalle 
+    ADD CONSTRAINT plan_detalle_plan_id_fkey FOREIGN KEY 
     ( 
-     paciente_id
+     plan_id
     ) 
-    REFERENCES "PUBLIC".pacientes 
+    REFERENCES planes_tratamiento 
     ( 
      id
     ) 
+    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".planes_tratamiento 
-    ADD CONSTRAINT planes_tratamiento_FK1 FOREIGN KEY 
+ALTER TABLE planes_tratamiento 
+    ADD CONSTRAINT planes_tratamiento_kinesiologo_id_fkey FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
-    REFERENCES "PUBLIC".kinesiologos 
+    REFERENCES kinesiologos 
     ( 
      id
     ) 
+    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE "PUBLIC".seguimiento_progreso 
-    ADD CONSTRAINT seguimiento_progreso_FK0 FOREIGN KEY 
+ALTER TABLE planes_tratamiento 
+    ADD CONSTRAINT planes_tratamiento_paciente_id_fkey FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
+    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE seguimiento_progreso 
+    ADD CONSTRAINT seguimiento_progreso_plan_detalle_id_fkey FOREIGN KEY 
     ( 
      plan_detalle_id
     ) 
-    REFERENCES "PUBLIC".plan_detalle 
+    REFERENCES plan_detalle 
     ( 
      id
     ) 
@@ -311,9 +617,9 @@ ALTER TABLE "PUBLIC".seguimiento_progreso
 
 -- Informe de Resumen de Oracle SQL Developer Data Modeler: 
 -- 
--- CREATE TABLE                             9
--- CREATE INDEX                             1
--- ALTER TABLE                             23
+-- CREATE TABLE                            16
+-- CREATE INDEX                             0
+-- ALTER TABLE                             55
 -- CREATE VIEW                              0
 -- ALTER VIEW                               0
 -- CREATE PACKAGE                           0
@@ -350,4 +656,4 @@ ALTER TABLE "PUBLIC".seguimiento_progreso
 -- ORDS ENABLE OBJECT                       0
 -- 
 -- ERRORS                                   0
--- WARNINGS                                 1
+-- WARNINGS                                 0
