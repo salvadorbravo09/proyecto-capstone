@@ -76,6 +76,12 @@ Instala las dependencias:
 npm install
 ```
 
+y
+
+```bash
+npm install @supabase/supabase-js
+```
+
 ### 3. Configurar Variables de Entorno
 
 Crea un archivo `.env` en la carpeta `frontend` con las credenciales de Supabase:
