@@ -46,7 +46,7 @@ export default function AdminKinesiologos() {
       const { data, error } = await supabase
         .from("kinesiologos")
         .select(
-          "id, usuario_id, nombre, apellido, especialidad, especialidad_id, especialidades(nombre), registro_minsal, telefono, rut, usuarios:usuarios(email)",
+          "id, usuario_id, nombre, apellido, especialidad_id, especialidades(nombre), registro_minsal, telefono, rut, usuarios:usuarios(email)",
         )
         .order("nombre");
 
