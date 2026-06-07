@@ -7,7 +7,10 @@ type CreatePacientePayload = {
   email: string;
   rut?: string | null;
   telefono?: string | null;
-  prevision?: string | null;
+
+  // Campo obsoleto, ya no se utiliza
+  // prevision?: string | null;
+
   prevision_id?: string | null;
   fecha_nacimiento?: string | null;
 };
@@ -80,7 +83,8 @@ Deno.serve(async (req) => {
   const email = payload.email?.trim().toLowerCase();
   const rut = payload.rut?.trim();
   const telefono = payload.telefono?.trim();
-  const prevision = payload.prevision?.trim();
+  // Campo obsoleto, ya no se utiliza
+  // const prevision = payload.prevision?.trim();
   const previsionId = payload.prevision_id?.trim() || null;
   const fechaNacimiento = payload.fecha_nacimiento?.trim();
 
@@ -127,7 +131,8 @@ Deno.serve(async (req) => {
     apellido,
     rut,
     telefono,
-    prevision,
+      // Campo obsoleto, ya no se utiliza
+  // prevision,
     prevision_id: previsionId,
     fecha_nacimiento: fechaNacimiento || null,
     email,
