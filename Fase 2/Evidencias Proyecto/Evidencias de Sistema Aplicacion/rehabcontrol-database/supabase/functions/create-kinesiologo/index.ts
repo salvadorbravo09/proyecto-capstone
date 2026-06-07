@@ -6,7 +6,10 @@ type CreateKinesiologoPayload = {
   apellido: string;
   email: string;
   password: string;
-  especialidad?: string | null;
+
+  // Campo antiguo, reemplazado por especialidad_id
+  // especialidad?: string | null;
+
   especialidad_id?: string | null;
   registro_minsal?: string | null;
   telefono?: string | null;
@@ -38,25 +41,31 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return jsonResponse(500, { error: "Missing Supabase environment configuration." });
+    return jsonResponse(500, {
+      error: "Missing Supabase environment configuration.",
+    });
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
   const jwt = authHeader.replace("Bearer ", "").trim();
+
   if (!jwt) {
-    return jsonResponse(401, { error: "Missing authorization token." });
+    return jsonResponse(401, {
+      error: "Missing authorization token.",
+    });
   }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(
-    jwt,
-  );
+  const { data: userData, error: userError } =
+    await supabaseAdmin.auth.getUser(jwt);
 
   if (userError || !userData?.user) {
-    return jsonResponse(401, { error: "Unauthorized user." });
+    return jsonResponse(401, {
+      error: "Unauthorized user.",
+    });
   }
 
   const { data: roleData, error: roleError } = await supabaseAdmin
@@ -66,32 +75,44 @@ Deno.serve(async (req) => {
     .single();
 
   if (roleError || roleData?.rol !== "admin") {
-    return jsonResponse(403, { error: "Admin access required." });
+    return jsonResponse(403, {
+      error: "Admin access required.",
+    });
   }
 
   let payload: CreateKinesiologoPayload;
+
   try {
     payload = (await req.json()) as CreateKinesiologoPayload;
   } catch {
-    return jsonResponse(400, { error: "Invalid JSON payload." });
+    return jsonResponse(400, {
+      error: "Invalid JSON payload.",
+    });
   }
 
   const nombre = payload.nombre?.trim();
   const apellido = payload.apellido?.trim();
   const email = payload.email?.trim().toLowerCase();
   const password = payload.password?.trim();
-  const especialidad = payload.especialidad?.trim();
+
+  // Campo antiguo, reemplazado por especialidad_id
+  // const especialidad = payload.especialidad?.trim();
+
   const especialidadId = payload.especialidad_id?.trim() || null;
   const registroMinsal = payload.registro_minsal?.trim();
   const telefono = payload.telefono?.trim();
   const rut = payload.rut?.trim();
 
   if (!nombre || !apellido || !email || !password) {
-    return jsonResponse(400, { error: "Missing required fields." });
+    return jsonResponse(400, {
+      error: "Missing required fields.",
+    });
   }
 
-  if ((!especialidad && !especialidadId) || !registroMinsal || !telefono || !rut) {
-    return jsonResponse(400, { error: "Missing required kinesiologo data." });
+  if (!especialidadId || !registroMinsal || !telefono || !rut) {
+    return jsonResponse(400, {
+      error: "Missing required kinesiologo data.",
+    });
   }
 
   const { data: authData, error: authError } =
@@ -112,7 +133,10 @@ Deno.serve(async (req) => {
     usuario_id: authData.user.id,
     nombre,
     apellido,
-    especialidad,
+
+    // Campo antiguo, ya no existe en la tabla
+    // especialidad,
+
     especialidad_id: especialidadId,
     registro_minsal: registroMinsal,
     telefono,
@@ -125,6 +149,7 @@ Deno.serve(async (req) => {
 
   if (insertError) {
     await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+
     return jsonResponse(400, {
       error: insertError.message,
     });
