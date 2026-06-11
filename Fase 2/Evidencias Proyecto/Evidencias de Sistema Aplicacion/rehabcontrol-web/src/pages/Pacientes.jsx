@@ -207,6 +207,12 @@ export default function Pacientes() {
         fecha_nacimiento: formData.fecha_nacimiento || null,
       };
 
+      if (payload.fecha_nacimiento && payload.fecha_nacimiento > format(new Date(), "yyyy-MM-dd")) {
+        setErrorMessage("La fecha de nacimiento no puede ser futura.");
+        setSaving(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "create-paciente",
         {
@@ -550,6 +556,7 @@ export default function Pacientes() {
                 <label className="text-sm font-medium">Fecha de nacimiento</label>
                 <Input
                   type="date"
+                  max={format(new Date(), "yyyy-MM-dd")}
                   value={formData.fecha_nacimiento}
                   onChange={(e) =>
                     setFormData({ ...formData, fecha_nacimiento: e.target.value })
