@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,32 +6,71 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  Alert,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 
-type ProgresoRecord = {
+type DiaResumen = {
+  fecha: string;
+  label: string;
+  completados: number;
+  total: number;
+  porcentaje: number;
+  dolorPromedio: number | null;
+};
+
+type HistorialItem = {
   id: string;
-  fecha_registro: string;
-  nivel_dolor: number | null;
-  completado: boolean;
+  fecha: string;
   ejercicio_nombre: string;
+  completado: boolean;
+  nivel_dolor: number | null;
+};
+
+type ProgressData = {
+  totalHoy: number;
+  completadosHoy: number;
+  dolorHoy: number | null;
+  dolorId: string | null;
+  semanal: DiaResumen[];
+  historial: HistorialItem[];
+};
+
+const DOLOR_EMOJIS: Record<number, string> = {
+  1: "😊", 2: "😊",
+  3: "🙂", 4: "🙂",
+  5: "😐", 6: "😐",
+  7: "😣", 8: "😣",
+  9: "😫", 10: "😫",
+};
+
+const DOLOR_LABELS: Record<number, string> = {
+  1: "Sin dolor",
+  2: "Muy leve",
+  3: "Leve",
+  4: "Molesto",
+  5: "Moderado",
+  6: "Notable",
+  7: "Fuerte",
+  8: "Intenso",
+  9: "Muy intenso",
+  10: "Insoportable",
 };
 
 export default function ProgressScreen() {
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [data, setData] = useState<ProgressData | null>(null);
   const [selectedDolor, setSelectedDolor] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [historial, setHistorial] = useState<ProgresoRecord[]>([]);
+  const [savingDolor, setSavingDolor] = useState(false);
 
   useEffect(() => {
-    fetchHistorial();
+    fetchAll();
   }, []);
 
-  async function fetchHistorial() {
+  async function fetchAll() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -44,64 +83,143 @@ export default function ProgressScreen() {
 
       if (!pacienteData) return;
 
+      const today = new Date().toISOString().split("T")[0];
+      const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
       const { data: planesData } = await supabase
         .from("planes_tratamiento")
         .select(
           `id, plan_detalle!inner(
             id,
-            seguimiento_progreso(id, fecha_registro, nivel_dolor, completado),
-            ejercicio:ejercicios(nombre)
+            series,
+            repeticiones,
+            frecuencia_diaria,
+            ejercicio:ejercicios(id, nombre)
           )`
         )
-        .eq("paciente_id", pacienteData.id);
+        .eq("paciente_id", pacienteData.id)
+        .is("fecha_fin", null);
 
-      const records: ProgresoRecord[] = [];
+      if (!planesData || planesData.length === 0) {
+        setData(null);
+        return;
+      }
 
-      if (planesData) {
-        for (const plan of planesData) {
-          if (plan.plan_detalle) {
-            for (const detalle of plan.plan_detalle) {
-              const ejercicio = Array.isArray(detalle.ejercicio)
-                ? detalle.ejercicio[0]
-                : detalle.ejercicio;
+      const detalleIds: string[] = [];
+      const detalleNombres = new Map<string, string>();
+      let totalHoy = 0;
 
-              if (detalle.seguimiento_progreso) {
-                for (const prog of detalle.seguimiento_progreso) {
-                  records.push({
-                    id: prog.id,
-                    fecha_registro: prog.fecha_registro,
-                    nivel_dolor: prog.nivel_dolor,
-                    completado: prog.completado,
-                    ejercicio_nombre: ejercicio?.nombre || "Ejercicio",
-                  });
-                }
-              }
-            }
-          }
+      for (const plan of planesData) {
+        if (!plan.plan_detalle) continue;
+        for (const detalle of plan.plan_detalle) {
+          const ejercicio = Array.isArray(detalle.ejercicio)
+            ? detalle.ejercicio[0]
+            : detalle.ejercicio;
+          if (!ejercicio) continue;
+          detalleIds.push(detalle.id);
+          detalleNombres.set(detalle.id, ejercicio.nombre || "Ejercicio");
+          totalHoy += detalle.frecuencia_diaria;
         }
       }
 
-      records.sort(
-        (a, b) =>
-          new Date(b.fecha_registro).getTime() -
-          new Date(a.fecha_registro).getTime()
-      );
+      const [progresoHoyRes, progresosSemanaRes] = await Promise.all([
+        supabase
+          .from("seguimiento_progreso")
+          .select("id, plan_detalle_id, completado, nivel_dolor")
+          .in("plan_detalle_id", detalleIds)
+          .gte("fecha_registro", today),
+        supabase
+          .from("seguimiento_progreso")
+          .select("id, plan_detalle_id, fecha_registro, completado, nivel_dolor")
+          .in("plan_detalle_id", detalleIds)
+          .gte("fecha_registro", sevenDaysAgo)
+          .lte("fecha_registro", today + "T23:59:59")
+          .order("fecha_registro", { ascending: false })
+          .limit(200),
+      ]);
 
-      setHistorial(records.slice(0, 20));
+      const progresosHoy = progresoHoyRes.data || [];
+      const progresosSemana = progresosSemanaRes.data || [];
+
+      const completadosHoySet = new Set<string>();
+      let dolorHoy: number | null = null;
+      let dolorId: string | null = null;
+
+      for (const p of progresosHoy) {
+        if (p.completado) completadosHoySet.add(p.plan_detalle_id);
+        if (p.nivel_dolor != null) {
+          dolorHoy = p.nivel_dolor;
+          dolorId = p.id;
+        }
+      }
+
+      const completadosHoy = completadosHoySet.size;
+      totalHoy = detalleIds.length;
+
+      const diasMap = new Map<string, { completados: Set<string>; dolores: number[]; count: number }>();
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().split("T")[0];
+        diasMap.set(key, { completados: new Set(), dolores: [], count: 0 });
+      }
+
+      for (const p of progresosSemana) {
+        const day = p.fecha_registro.split("T")[0];
+        if (!diasMap.has(day)) continue;
+        const entry = diasMap.get(day)!;
+        if (p.completado) entry.completados.add(p.plan_detalle_id);
+        if (p.nivel_dolor != null) entry.dolores.push(p.nivel_dolor);
+        entry.count++;
+      }
+
+      const semanal: DiaResumen[] = [];
+      const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().split("T")[0];
+        const entry = diasMap.get(key)!;
+        const totales = detalleIds.length;
+        semanal.push({
+          fecha: key,
+          label: i === 0 ? "Hoy" : diasSemana[d.getDay()],
+          completados: entry.completados.size,
+          total: totales,
+          porcentaje: totales > 0 ? Math.round((entry.completados.size / totales) * 100) : 0,
+          dolorPromedio: entry.dolores.length > 0
+            ? Math.round((entry.dolores.reduce((a, b) => a + b, 0) / entry.dolores.length) * 10) / 10
+            : null,
+        });
+      }
+
+      const historial: HistorialItem[] = progresosSemana.map((p) => ({
+        id: p.id,
+        fecha: p.fecha_registro,
+        ejercicio_nombre: detalleNombres.get(p.plan_detalle_id) || "Ejercicio",
+        completado: p.completado,
+        nivel_dolor: p.nivel_dolor,
+      }));
+
+      setData({
+        totalHoy,
+        completadosHoy,
+        dolorHoy,
+        dolorId,
+        semanal,
+        historial,
+      });
     } catch (error) {
-      console.error("Error fetching historial:", error);
+      console.error("Error fetching progress:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  async function guardarRegistro() {
-    if (selectedDolor === null) {
-      Alert.alert("Error", "Selecciona tu nivel de dolor.");
-      return;
-    }
-
-    setSaving(true);
+  async function guardarDolor() {
+    if (selectedDolor === null) return;
+    setSavingDolor(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -119,71 +237,80 @@ export default function ProgressScreen() {
         .from("planes_tratamiento")
         .select("id, plan_detalle!inner(id)")
         .eq("paciente_id", pacienteData.id)
-        .eq("estado", "activo")
+        .is("fecha_fin", null)
         .limit(1);
 
-      if (!planesData || planesData.length === 0) {
-        Alert.alert("Error", "No tienes un plan de tratamiento activo.");
-        setSaving(false);
-        return;
-      }
+      if (!planesData || planesData.length === 0) return;
 
-      const planDetalle = planesData[0].plan_detalle?.[0];
-      if (!planDetalle) {
-        Alert.alert("Error", "No hay ejercicios en tu plan.");
-        setSaving(false);
-        return;
-      }
+      const detalle = planesData[0].plan_detalle?.[0];
+      if (!detalle) return;
 
-      const { error } = await supabase
-        .from("seguimiento_progreso")
-        .insert([
-          {
-            plan_detalle_id: planDetalle.id,
+      if (data?.dolorId) {
+        await supabase
+          .from("seguimiento_progreso")
+          .update({ nivel_dolor: selectedDolor })
+          .eq("id", data.dolorId);
+      } else {
+        const { data: newProg } = await supabase
+          .from("seguimiento_progreso")
+          .insert([{
+            plan_detalle_id: detalle.id,
             nivel_dolor: selectedDolor,
-            completado: true,
-          },
-        ]);
+            completado: false,
+          }])
+          .select("id")
+          .single();
 
-      if (error) throw error;
+        if (newProg && data) {
+          setData({ ...data, dolorId: newProg.id });
+        }
+      }
 
-      Alert.alert("Éxito", "Registro guardado correctamente.");
+      if (data) {
+        setData({ ...data, dolorHoy: selectedDolor });
+      }
+
       setSelectedDolor(null);
-      setShowForm(false);
-      fetchHistorial();
     } catch (error) {
-      console.error("Error guardando registro:", error);
-      Alert.alert("Error", "No se pudo guardar el registro.");
+      console.error("Error guardando dolor:", error);
     } finally {
-      setSaving(false);
+      setSavingDolor(false);
     }
   }
 
-  const getDolorEmoji = (nivel: number) => {
-    if (nivel <= 2) return "😊";
-    if (nivel <= 4) return "🙂";
-    if (nivel <= 6) return "😐";
-    if (nivel <= 8) return "😣";
-    return "😫";
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAll();
   };
 
-  const getDolorColor = (nivel: number) => {
-    if (nivel <= 2) return "#38A169";
-    if (nivel <= 4) return "#68D391";
-    if (nivel <= 6) return "#D69E2E";
-    if (nivel <= 8) return "#ED8936";
-    return "#E53E3E";
-  };
+  const progressPercent = data && data.totalHoy > 0
+    ? Math.round((data.completadosHoy / data.totalHoy) * 100)
+    : 0;
 
-  const formatFecha = (fecha: string) => {
-    const date = new Date(fecha);
+  const historialAgrupado = useMemo(() => {
+    if (!data) return [];
+    const grupos = new Map<string, HistorialItem[]>();
+    for (const item of data.historial) {
+      const day = item.fecha.split("T")[0];
+      if (!grupos.has(day)) grupos.set(day, []);
+      grupos.get(day)!.push(item);
+    }
+    return Array.from(grupos.entries()).slice(0, 14);
+  }, [data?.historial]);
+
+  function formatFecha(fecha: string) {
+    const date = new Date(fecha + "T00:00:00");
+    const hoy = new Date();
+    const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    if (date.toDateString() === hoy.toDateString()) return "Hoy";
+    if (date.toDateString() === ayer.toDateString()) return "Ayer";
+
     return date.toLocaleDateString("es-CL", {
       day: "numeric",
       month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
     });
-  };
+  }
 
   if (loading) {
     return (
@@ -195,118 +322,198 @@ export default function ProgressScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Mi Progreso</Text>
           <Text style={styles.subtitle}>Seguimiento de recuperación</Text>
         </View>
 
-        <View style={styles.registerCard}>
-          <Ionicons name="analytics" size={32} color="#0a7ea4" />
-          <Text style={styles.registerTitle}>¿Cómo te sientes hoy?</Text>
-          <Text style={styles.registerSubtitle}>
-            Registra tu nivel de dolor
-          </Text>
-          <Pressable
-            style={styles.registerButton}
-            onPress={() => setShowForm(!showForm)}
-          >
-            <Text style={styles.registerButtonText}>
-              {showForm ? "Cancelar" : "Registrar"}
+        {!data ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="analytics-outline" size={48} color="#d0d5dd" />
+            </View>
+            <Text style={styles.emptyTitle}>Sin plan activo</Text>
+            <Text style={styles.emptySubtitle}>
+              No tienes un plan de tratamiento activo.{"\n"}
+              Tu kinesiólogo asignará ejercicios pronto.
             </Text>
-          </Pressable>
-        </View>
-
-        {showForm && (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Nivel de dolor (1-10)</Text>
-            <View style={styles.dolorGrid}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((nivel) => (
-                <Pressable
-                  key={nivel}
-                  style={[
-                    styles.dolorButton,
-                    selectedDolor === nivel && [
-                      styles.dolorButtonSelected,
-                      { borderColor: getDolorColor(nivel) },
-                    ],
-                  ]}
-                  onPress={() => setSelectedDolor(nivel)}
-                >
-                  <Text style={styles.dolorEmoji}>{getDolorEmoji(nivel)}</Text>
-                  <Text
-                    style={[
-                      styles.dolorNumber,
-                      selectedDolor === nivel && {
-                        color: getDolorColor(nivel),
-                        fontWeight: "700",
-                      },
-                    ]}
-                  >
-                    {nivel}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Pressable
-              style={[
-                styles.saveButton,
-                saving && styles.saveButtonDisabled,
-              ]}
-              onPress={guardarRegistro}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.saveButtonText}>Guardar registro</Text>
-              )}
-            </Pressable>
           </View>
-        )}
-
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Historial</Text>
-
-          {historial.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="time-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>
-                No hay registros de progreso
-              </Text>
+        ) : (
+          <>
+            <View style={styles.progressCard}>
+              <View style={styles.progressHeader}>
+                <Ionicons name="checkmark-circle" size={20} color="#0a7ea4" />
+                <Text style={styles.progressTitle}>Resumen de Hoy</Text>
+              </View>
+              <View style={styles.progressBody}>
+                <Text style={styles.progressCount}>
+                  {data.completadosHoy}/{data.totalHoy}
+                </Text>
+                <Text style={styles.progressLabel}>ejercicios completados</Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[styles.progressFill, { width: `${progressPercent}%` }]}
+                  />
+                </View>
+                <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              </View>
             </View>
-          ) : (
-            historial.map((record) => (
-              <View key={record.id} style={styles.historyCard}>
-                <View style={styles.historyHeader}>
-                  <Text style={styles.historyDolor}>
-                    {getDolorEmoji(record.nivel_dolor || 5)}{" "}
-                    <Text
+
+            <View style={styles.dolorCard}>
+              <View style={styles.dolorHeader}>
+                <Ionicons name="heart-outline" size={20} color="#dc2626" />
+                <Text style={styles.dolorTitle}>Registrar Dolor</Text>
+              </View>
+              <Text style={styles.dolorSubtitle}>
+                {data.dolorHoy != null
+                  ? `Hoy registraste: ${DOLOR_LABELS[data.dolorHoy] || data.dolorHoy + "/10"}`
+                  : "¿Cómo evalúas tu dolor hoy?"}
+              </Text>
+              <View style={styles.dolorGrid}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((nivel) => {
+                  const isSelected = selectedDolor === nivel;
+                  const isActive = data.dolorHoy != null && data.dolorHoy === nivel && !isSelected;
+                  return (
+                    <Pressable
+                      key={nivel}
                       style={[
-                        styles.historyDolorNumber,
-                        { color: getDolorColor(record.nivel_dolor || 5) },
+                        styles.dolorButton,
+                        isSelected && styles.dolorButtonSelected,
+                        isActive && styles.dolorButtonActive,
                       ]}
+                      onPress={() => setSelectedDolor(
+                        selectedDolor === nivel ? null : nivel
+                      )}
                     >
-                      {record.nivel_dolor}/10
+                      <Text style={styles.dolorEmoji}>{DOLOR_EMOJIS[nivel]}</Text>
+                      <Text style={[
+                        styles.dolorNumber,
+                        (isSelected || isActive) && styles.dolorNumberActive,
+                      ]}>
+                        {nivel}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {selectedDolor != null && (
+                <Pressable
+                  style={[styles.saveButton, savingDolor && styles.saveButtonDisabled]}
+                  onPress={guardarDolor}
+                  disabled={savingDolor}
+                >
+                  {savingDolor ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      {data.dolorHoy != null ? "Actualizar dolor" : "Guardar dolor"}
                     </Text>
-                  </Text>
-                  <Text style={styles.historyDate}>
-                    {formatFecha(record.fecha_registro)}
+                  )}
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="calendar" size={18} color="#0a7ea4" />
+                <Text style={styles.sectionTitle}>Últimos 7 Días</Text>
+              </View>
+              {data.semanal.map((dia) => (
+                <View key={dia.fecha} style={styles.barRow}>
+                  <Text style={styles.barLabel}>{dia.label}</Text>
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        {
+                          width: `${dia.porcentaje}%`,
+                          backgroundColor:
+                            dia.porcentaje >= 80 ? "#38A169" :
+                            dia.porcentaje >= 50 ? "#D69E2E" :
+                            dia.porcentaje >= 25 ? "#ED8936" :
+                            "#dc2626",
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.barMeta}>
+                    <Text style={styles.barPercent}>{dia.porcentaje}%</Text>
+                    {dia.dolorPromedio != null && (
+                      <Text style={styles.barDolor}>
+                        {DOLOR_EMOJIS[Math.round(dia.dolorPromedio)]}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+              {data.semanal.length > 0 && (
+                <Text style={styles.semanalFooter}>
+                  Dolor promedio semanal:{" "}
+                  {(() => {
+                    const conDolor = data.semanal.filter(d => d.dolorPromedio != null);
+                    if (conDolor.length === 0) return "—";
+                    const avg = conDolor.reduce((a, d) => a + d.dolorPromedio!, 0) / conDolor.length;
+                    return `${avg.toFixed(1)}/10`;
+                  })()}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="time-outline" size={18} color="#0a7ea4" />
+                <Text style={styles.sectionTitle}>Historial</Text>
+              </View>
+              {historialAgrupado.length === 0 ? (
+                <View style={styles.emptySmall}>
+                  <Text style={styles.emptySmallText}>
+                    No hay registros en los últimos 7 días
                   </Text>
                 </View>
-                <Text style={styles.historyExercise}>
-                  {record.ejercicio_nombre}
-                </Text>
-                {record.completado && (
-                  <View style={styles.completedBadge}>
-                    <Ionicons name="checkmark-circle" size={14} color="#38A169" />
-                    <Text style={styles.completedText}>Completado</Text>
+              ) : (
+                historialAgrupado.map(([fecha, items]) => (
+                  <View key={fecha}>
+                    <Text style={styles.historyDateHeader}>
+                      {formatFecha(fecha)}
+                    </Text>
+                    {items.map((item) => (
+                      <View key={item.id} style={styles.historyCard}>
+                        <View style={styles.historyRow}>
+                          <View style={styles.historyLeft}>
+                            <Ionicons
+                              name={item.completado ? "checkmark-circle" : "ellipse-outline"}
+                              size={18}
+                              color={item.completado ? "#38A169" : "#d1d5db"}
+                            />
+                            <Text style={styles.historyExerciseName}>
+                              {item.ejercicio_nombre}
+                            </Text>
+                          </View>
+                          {item.nivel_dolor != null && (
+                            <View style={styles.historyDolorBadge}>
+                              <Text style={styles.historyDolorText}>
+                                {DOLOR_EMOJIS[item.nivel_dolor]} {item.nivel_dolor}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                )}
-              </View>
-            ))
-          )}
-        </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </View>
   );
@@ -335,76 +542,137 @@ const styles = StyleSheet.create({
     color: "#1a1a2e",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 15,
+    color: "#64748b",
     marginTop: 4,
   },
-  registerCard: {
-    backgroundColor: "white",
-    marginHorizontal: 20,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 24,
+  emptyState: {
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingVertical: 60,
+    paddingHorizontal: 40,
   },
-  registerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a2e",
-    marginTop: 12,
-  },
-  registerSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 4,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
-  registerButton: {
-    backgroundColor: "#0a7ea4",
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  registerButtonText: {
-    color: "white",
-    fontSize: 16,
+  emptyTitle: {
+    fontSize: 18,
     fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
   },
-  formCard: {
-    backgroundColor: "white",
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  progressCard: {
     marginHorizontal: 20,
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: 16,
+    backgroundColor: "white",
+    borderRadius: 14,
     padding: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  formTitle: {
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  progressTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1a1a2e",
-    textAlign: "center",
+  },
+  progressBody: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  progressCount: {
+    fontSize: 36,
+    fontWeight: "700",
+    color: "#0a7ea4",
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  progressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "#e8f4f8",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#0a7ea4",
+    borderRadius: 4,
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0a7ea4",
+    minWidth: 36,
+    textAlign: "right",
+  },
+  dolorCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  dolorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  dolorTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1a1a2e",
+  },
+  dolorSubtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
     marginBottom: 16,
   },
   dolorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
   },
   dolorButton: {
-    width: 60,
-    height: 70,
-    borderRadius: 12,
+    width: 52,
+    height: 60,
+    borderRadius: 10,
     backgroundColor: "#f8f9fa",
     borderWidth: 2,
     borderColor: "transparent",
@@ -413,19 +681,30 @@ const styles = StyleSheet.create({
   },
   dolorButtonSelected: {
     backgroundColor: "#e8f4f8",
+    borderColor: "#0a7ea4",
+  },
+  dolorButtonActive: {
+    backgroundColor: "#f0fff4",
+    borderColor: "#38A169",
   },
   dolorEmoji: {
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: 20,
+    marginBottom: 2,
   },
   dolorNumber: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "500",
+  },
+  dolorNumberActive: {
+    color: "#0a7ea4",
+    fontWeight: "700",
   },
   saveButton: {
+    marginTop: 16,
     backgroundColor: "#0a7ea4",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
   },
   saveButtonDisabled: {
@@ -433,74 +712,125 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
-  historySection: {
+  section: {
     paddingHorizontal: 20,
     marginTop: 24,
   },
-  historyTitle: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#1a1a2e",
-    marginBottom: 16,
   },
-  emptyState: {
+  barRow: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 40,
+    marginBottom: 8,
+    gap: 8,
   },
-  emptyText: {
+  barLabel: {
+    width: 36,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+    textAlign: "right",
+  },
+  barTrack: {
+    flex: 1,
+    height: 20,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: 6,
+  },
+  barMeta: {
+    width: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  barPercent: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  barDolor: {
+    fontSize: 12,
+  },
+  semanalFooter: {
+    fontSize: 13,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 12,
+    fontStyle: "italic",
+  },
+  emptySmall: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  emptySmallText: {
     fontSize: 14,
-    color: "#999",
-    marginTop: 8,
+    color: "#94a3b8",
+  },
+  historyDateHeader: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#94a3b8",
+    marginBottom: 8,
+    marginTop: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   historyCard: {
     backgroundColor: "white",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  historyHeader: {
+  historyRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
   },
-  historyDolor: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  historyDolorNumber: {
-    fontWeight: "700",
-  },
-  historyDate: {
-    fontSize: 12,
-    color: "#999",
-  },
-  historyExercise: {
-    fontSize: 14,
-    color: "#333",
-    marginBottom: 8,
-  },
-  completedBadge: {
+  historyLeft: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "#f0fff4",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
+    gap: 8,
+    flex: 1,
   },
-  completedText: {
+  historyExerciseName: {
+    fontSize: 14,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  historyDolorBadge: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  historyDolorText: {
     fontSize: 12,
-    color: "#38A169",
     fontWeight: "600",
+    color: "#dc2626",
+  },
+  bottomPadding: {
+    height: 100,
   },
 });
