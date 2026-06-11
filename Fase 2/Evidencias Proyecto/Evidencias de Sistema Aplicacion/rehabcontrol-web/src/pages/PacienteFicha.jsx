@@ -4,8 +4,7 @@ import { ArrowLeft, Calendar, Clock, User, Phone, Mail, CalendarDays, Activity, 
 import { Button } from "../components/ui/button";
 import PrescripcionModal from "../components/PrescripcionModal";
 import { supabase } from "@/lib/supabase";
-import { mockEvolucion } from "../data/mockPaciente";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 
 const tabs = [
@@ -27,7 +26,10 @@ export default function PacienteFicha() {
   const [loadingPaciente, setLoadingPaciente] = useState(true);
   const [kinesiologoId, setKinesiologoId] = useState(null);
 
-  const evolucion = mockEvolucion;
+  const [evolucionData, setEvolucionData] = useState([]);
+  const [evolucionLoading, setEvolucionLoading] = useState(true);
+  const [evolucionError, setEvolucionError] = useState(null);
+  const [ultimaSemanaCompletado, setUltimaSemanaCompletado] = useState(0);
 
   useEffect(() => {
     async function init() {
@@ -156,6 +158,103 @@ export default function PacienteFicha() {
 
     fetchHistorial();
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    async function fetchEvolucion() {
+      setEvolucionLoading(true);
+      setEvolucionError(null);
+
+      try {
+        const { data: plan } = await supabase
+          .from("planes_tratamiento")
+          .select("id")
+          .eq("paciente_id", id)
+          .is("fecha_fin", null)
+          .maybeSingle();
+
+        if (!plan) {
+          if (!cancelled) { setEvolucionData([]); setUltimaSemanaCompletado(0); }
+          return;
+        }
+
+        const { data: detalles } = await supabase
+          .from("plan_detalle")
+          .select("id")
+          .eq("plan_id", plan.id);
+
+        if (!detalles || detalles.length === 0) {
+          if (!cancelled) { setEvolucionData([]); setUltimaSemanaCompletado(0); }
+          return;
+        }
+
+        const detalleIds = detalles.map(d => d.id);
+        const cuatroSemanasAtras = subWeeks(new Date(), 4).toISOString();
+
+        const { data: progresos } = await supabase
+          .from("seguimiento_progreso")
+          .select("fecha_registro, completado, nivel_dolor")
+          .in("plan_detalle_id", detalleIds)
+          .gte("fecha_registro", cuatroSemanasAtras)
+          .order("fecha_registro", { ascending: true });
+
+        const result = agregarPorSemana(progresos || []);
+        if (!cancelled) {
+          setEvolucionData(result.data);
+          setUltimaSemanaCompletado(result.ultimaSemana);
+        }
+      } catch (err) {
+        console.error("Error fetching evolución:", err);
+        if (!cancelled) setEvolucionError(err.message);
+      } finally {
+        if (!cancelled) setEvolucionLoading(false);
+      }
+    }
+
+    fetchEvolucion();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  function agregarPorSemana(progresos) {
+    const weekMap = new Map();
+
+    for (const p of progresos) {
+      const weekStart = startOfWeek(new Date(p.fecha_registro), { weekStartsOn: 1 });
+      const key = weekStart.toISOString().split("T")[0];
+
+      if (!weekMap.has(key)) {
+        weekMap.set(key, { weekStart, total: 0, completados: 0, dolorSum: 0, dolorCount: 0 });
+      }
+
+      const w = weekMap.get(key);
+      w.total++;
+      if (p.completado) w.completados++;
+      if (p.nivel_dolor != null) {
+        w.dolorSum += p.nivel_dolor;
+        w.dolorCount++;
+      }
+    }
+
+    const sorted = [...weekMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-4);
+
+    const weeks = sorted.map(([_, w], idx) => {
+      const weekEnd = endOfWeek(w.weekStart, { weekStartsOn: 1 });
+      return {
+        semana: `Sem ${idx + 1} (${format(w.weekStart, "d MMM", { locale: es })}-${format(weekEnd, "d MMM", { locale: es })})`,
+        cumplimiento: Math.round((w.completados / w.total) * 100),
+        dolor_promedio: w.dolorCount > 0
+          ? Math.round((w.dolorSum / w.dolorCount) * 10) / 10
+          : null,
+      };
+    });
+
+    const ultimaSemana = weeks.length > 0 ? weeks[weeks.length - 1].cumplimiento : 0;
+    return { data: weeks, ultimaSemana };
+  }
 
   async function handleSaveRutina(nuevaRutina) {
     if (!kinesiologoId) {
@@ -493,57 +592,82 @@ export default function PacienteFicha() {
         {activeTab === "evolucion" && (
           <div className="p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-6">Evolución del tratamiento</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-medium text-slate-500 mb-4">Cumplimiento semanal</h3>
-                <div className="space-y-3">
-                  {evolucion.map((sem) => (
-                    <div key={sem.semana}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-slate-600">{sem.semana}</span>
-                        <span className="font-semibold text-slate-900">{sem.cumplimiento}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#2B6CB0] to-cyan-400 transition-all"
-                          style={{ width: `${sem.cumplimiento}%` }}
-                        />
-                      </div>
+
+            {evolucionLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="size-6 animate-spin text-[#2B6CB0]" />
+              </div>
+            ) : evolucionError ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <AlertCircle className="size-12 mb-3 opacity-50 text-rose-400" />
+                <p className="text-sm font-medium text-slate-500">Error al cargar la evolución</p>
+                <p className="text-xs text-slate-400 mt-1">Intenta recargar la página.</p>
+              </div>
+            ) : evolucionData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <TrendingUp className="size-12 mb-3 opacity-50" />
+                <p className="text-sm font-medium text-slate-500">Sin datos de evolución</p>
+                <p className="text-xs text-slate-400 mt-1">No hay registros de progreso en las últimas 4 semanas.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <h3 className="text-sm font-medium text-slate-500 mb-4">Cumplimiento semanal</h3>
+                    <div className="space-y-3">
+                      {evolucionData.map((sem) => (
+                        <div key={sem.semana}>
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span className="text-slate-600">{sem.semana}</span>
+                            <span className="font-semibold text-slate-900">{sem.cumplimiento}%</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-[#2B6CB0] to-cyan-400 transition-all"
+                              style={{ width: `${sem.cumplimiento}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <h3 className="text-sm font-medium text-slate-500 mb-4">Dolor promedio semanal</h3>
+                    <div className="space-y-3">
+                      {evolucionData.map((sem) => {
+                        const dolorVal = sem.dolor_promedio;
+                        const dolorColor = dolorVal != null
+                          ? dolorVal <= 3
+                            ? "text-emerald-600 bg-emerald-50"
+                            : dolorVal <= 6
+                              ? "text-amber-600 bg-amber-50"
+                              : "text-rose-600 bg-rose-50"
+                          : "text-slate-400 bg-slate-50";
+                        return (
+                          <div key={sem.semana} className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600">{sem.semana}</span>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${dolorColor}`}>
+                              <AlertCircle className="size-3" />
+                              {dolorVal != null ? `${dolorVal}/10` : "--"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-medium text-slate-500 mb-4">Dolor promedio semanal</h3>
-                <div className="space-y-3">
-                  {evolucion.map((sem) => {
-                    const dolorColor =
-                      sem.dolor_promedio <= 3
-                        ? "text-emerald-600 bg-emerald-50"
-                        : sem.dolor_promedio <= 6
-                          ? "text-amber-600 bg-amber-50"
-                          : "text-rose-600 bg-rose-50";
-                    return (
-                      <div key={sem.semana} className="flex items-center justify-between">
-                        <span className="text-sm text-slate-600">{sem.semana}</span>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${dolorColor}`}>
-                          <AlertCircle className="size-3" />
-                          {sem.dolor_promedio}/10
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <CheckCircle2 className="size-4 text-emerald-500" />
-                <span>
-                  El paciente ha completado el <strong>92%</strong> de su rutina en la última semana.
-                </span>
-              </div>
-            </div>
+                {ultimaSemanaCompletado > 0 && (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCircle2 className="size-4 text-emerald-500" />
+                      <span>
+                        El paciente ha completado el <strong>{ultimaSemanaCompletado}%</strong> de su rutina en la última semana.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
