@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, Users } from "lucide-react";
+import { Loader2, Search, FileText } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { generarPdfFicha } from "../services/generarPdfFicha";
 
 function formatRegistrationDate(createdAt) {
   if (!createdAt) {
@@ -62,6 +63,7 @@ export default function AdminPacientes() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [pacientes, setPacientes] = useState([]);
+  const [exportandoId, setExportandoId] = useState(null);
 
   useEffect(() => {
     fetchPacientes();
@@ -129,6 +131,18 @@ export default function AdminPacientes() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExportPdf(id) {
+    setExportandoId(id);
+    try {
+      await generarPdfFicha(id);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("Error al generar PDF: " + (err?.message || err));
+    } finally {
+      setExportandoId(null);
     }
   }
 
@@ -250,9 +264,16 @@ export default function AdminPacientes() {
                   <td className="px-6 py-4">
                     <Button
                       type="button"
-                      className="bg-[#2B6CB0] hover:bg-[#2C5282]"
+                      disabled={exportandoId === paciente.id}
+                      onClick={() => handleExportPdf(paciente.id)}
+                      className="bg-[#2B6CB0] hover:bg-[#2C5282] disabled:opacity-50"
                     >
-                      Ver ficha clínica
+                      {exportandoId === paciente.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <FileText className="size-4" />
+                      )}
+                      {exportandoId === paciente.id ? "Generando..." : "Ver ficha clínica"}
                     </Button>
                   </td>
                 </tr>
