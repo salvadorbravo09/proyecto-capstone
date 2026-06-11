@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,16 @@ import {
   Pressable,
   Modal,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Colors } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 
-type Ejercicio = {
-  id: string;
+type EjercicioConProgreso = {
+  plan_detalle_id: string;
+  progreso_id: string | null;
   nombre: string;
   descripcion: string | null;
   parte_cuerpo: string | null;
@@ -26,9 +28,17 @@ type Ejercicio = {
   completado: boolean;
 };
 
+type ProgressRecord = {
+  id: string;
+  plan_detalle_id: string;
+  completado: boolean;
+};
+
 export default function ExercisesScreen() {
   const [loading, setLoading] = useState(true);
-  const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [ejercicios, setEjercicios] = useState<EjercicioConProgreso[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const player = useVideoPlayer(null);
 
@@ -45,7 +55,10 @@ export default function ExercisesScreen() {
 
   async function fetchEjercicios() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      setError(null);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: pacienteData } = await supabase
@@ -67,74 +80,132 @@ export default function ExercisesScreen() {
             repeticiones,
             frecuencia_diaria,
             ejercicio:ejercicios(id, nombre, descripcion, parte_cuerpo, url_multimedia)
-          )`
+          )`,
         )
         .eq("paciente_id", pacienteData.id)
         .is("fecha_fin", null);
 
-      const ejerciciosList: Ejercicio[] = [];
+      if (!planesData || planesData.length === 0) {
+        setEjercicios([]);
+        return;
+      }
 
-      if (planesData) {
-        for (const plan of planesData) {
-          if (plan.plan_detalle) {
-            for (const detalle of plan.plan_detalle) {
-              const ejercicio = Array.isArray(detalle.ejercicio)
-                ? detalle.ejercicio[0]
-                : detalle.ejercicio;
+      const detalleIds: string[] = [];
+      const ejerciciosRaw: {
+        detalle: any;
+        ejercicio: any;
+      }[] = [];
 
-              if (ejercicio) {
-                const { data: progData } = await supabase
-                  .from("seguimiento_progreso")
-                  .select("completado")
-                  .eq("plan_detalle_id", detalle.id)
-                  .gte("fecha_registro", today)
-                  .limit(1);
-
-                ejerciciosList.push({
-                  id: detalle.id,
-                  nombre: ejercicio.nombre,
-                  descripcion: ejercicio.descripcion,
-                  parte_cuerpo: ejercicio.parte_cuerpo,
-                  url_multimedia: ejercicio.url_multimedia,
-                  series: detalle.series,
-                  repeticiones: detalle.repeticiones,
-                  frecuencia_diaria: detalle.frecuencia_diaria,
-                  completado: progData?.[0]?.completado || false,
-                });
-              }
-            }
-          }
+      for (const plan of planesData) {
+        if (!plan.plan_detalle) continue;
+        for (const detalle of plan.plan_detalle) {
+          const ejercicio = Array.isArray(detalle.ejercicio)
+            ? detalle.ejercicio[0]
+            : detalle.ejercicio;
+          if (!ejercicio) continue;
+          detalleIds.push(detalle.id);
+          ejerciciosRaw.push({ detalle, ejercicio });
         }
       }
+
+      const { data: progresos } = await supabase
+        .from("seguimiento_progreso")
+        .select("id, plan_detalle_id, completado")
+        .in("plan_detalle_id", detalleIds)
+        .gte("fecha_registro", today);
+
+      const progresoMap = new Map<string, ProgressRecord>();
+      progresos?.forEach((p: ProgressRecord) => {
+        progresoMap.set(p.plan_detalle_id, p);
+      });
+
+      const ejerciciosList: EjercicioConProgreso[] = ejerciciosRaw.map(
+        ({ detalle, ejercicio }) => {
+          const prog = progresoMap.get(detalle.id);
+          return {
+            plan_detalle_id: detalle.id,
+            progreso_id: prog?.id || null,
+            nombre: ejercicio.nombre,
+            descripcion: ejercicio.descripcion,
+            parte_cuerpo: ejercicio.parte_cuerpo,
+            url_multimedia: ejercicio.url_multimedia,
+            series: detalle.series,
+            repeticiones: detalle.repeticiones,
+            frecuencia_diaria: detalle.frecuencia_diaria,
+            completado: prog?.completado || false,
+          };
+        },
+      );
 
       setEjercicios(ejerciciosList);
     } catch (error) {
       console.error("Error fetching ejercicios:", error);
+      setError("No se pudieron cargar los ejercicios.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  async function toggleCompletado(id: string, current: boolean) {
-    try {
-      const today = new Date().toISOString();
+  async function toggleCompletado(ej: EjercicioConProgreso) {
+    const today = new Date().toISOString();
+    const nuevoCompletado = !ej.completado;
 
-      if (current) {
-        await supabase
+    setEjercicios((prev) =>
+      prev.map((e) =>
+        e.plan_detalle_id === ej.plan_detalle_id
+          ? { ...e, completado: nuevoCompletado }
+          : e,
+      ),
+    );
+
+    try {
+      if (ej.completado && ej.progreso_id) {
+        const { error } = await supabase
           .from("seguimiento_progreso")
           .update({ completado: false })
-          .eq("id", id);
-      } else {
-        await supabase
-          .from("seguimiento_progreso")
-          .insert([{ plan_detalle_id: id, completado: true, fecha_registro: today }]);
-      }
+          .eq("id", ej.progreso_id);
 
-      fetchEjercicios();
+        if (error) throw error;
+      } else if (!ej.completado) {
+        const { data: newProg, error } = await supabase
+          .from("seguimiento_progreso")
+          .insert([
+            {
+              plan_detalle_id: ej.plan_detalle_id,
+              completado: true,
+              fecha_registro: today,
+            },
+          ])
+          .select("id")
+          .single();
+
+        if (error) throw error;
+
+        setEjercicios((prev) =>
+          prev.map((e) =>
+            e.plan_detalle_id === ej.plan_detalle_id
+              ? { ...e, progreso_id: newProg.id }
+              : e,
+          ),
+        );
+      }
     } catch (error) {
       console.error("Error updating progreso:", error);
+      setEjercicios((prev) =>
+        prev.map((e) =>
+          e.plan_detalle_id === ej.plan_detalle_id
+            ? { ...e, completado: ej.completado }
+            : e,
+        ),
+      );
     }
   }
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchEjercicios();
+  }, []);
 
   const getParteCuerpoIcon = (parte: string | null) => {
     switch (parte?.toLowerCase()) {
@@ -151,6 +222,10 @@ export default function ExercisesScreen() {
     }
   };
 
+  const completados = ejercicios.filter((e) => e.completado).length;
+  const total = ejercicios.length;
+  const progressPercent = total > 0 ? Math.round((completados / total) * 100) : 0;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -161,84 +236,154 @@ export default function ExercisesScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Mis Ejercicios</Text>
           <Text style={styles.subtitle}>Plan de tratamiento activo</Text>
         </View>
 
-        {ejercicios.length === 0 ? (
+        {error && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color="#dc2626" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={() => { setLoading(true); fetchEjercicios(); }}>
+              <Text style={styles.retryText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {total > 0 && (
+          <View style={styles.progressCard}>
+            <View style={styles.progressHeader}>
+              <Ionicons name="checkmark-circle" size={20} color="#0a7ea4" />
+              <Text style={styles.progressTitle}>
+                {completados}/{total} completados hoy
+              </Text>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[styles.progressFill, { width: `${progressPercent}%` }]}
+                />
+              </View>
+              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+            </View>
+          </View>
+        )}
+
+        {ejercicios.length === 0 && !error ? (
           <View style={styles.emptyState}>
-            <Ionicons name="fitness-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>
-              No tienes ejercicios asignados
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="fitness-outline" size={48} color="#d0d5dd" />
+            </View>
+            <Text style={styles.emptyTitle}>Sin ejercicios asignados</Text>
+            <Text style={styles.emptySubtitle}>
+              Tu kinesiólogo aún no ha asignado ejercicios.{"\n"}Pronto podrás ver tu rutina aquí.
             </Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {ejercicios.map((ejercicio) => (
+            {ejercicios.map((ej) => (
               <Pressable
-                key={ejercicio.id}
+                key={ej.plan_detalle_id}
                 style={[
                   styles.card,
-                  ejercicio.completado && styles.cardCompleted,
+                  ej.completado && styles.cardCompleted,
                 ]}
-                onPress={() => toggleCompletado(ejercicio.id, ejercicio.completado)}
+                onPress={() => toggleCompletado(ej)}
               >
-                <View style={styles.cardHeader}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons
-                      name={getParteCuerpoIcon(ejercicio.parte_cuerpo)}
-                      size={24}
-                      color={ejercicio.completado ? "#38A169" : "#0a7ea4"}
-                    />
-                  </View>
+                <View style={styles.cardRow}>
                   <View
                     style={[
-                      styles.checkCircle,
-                      ejercicio.completado && styles.checkCircleCompleted,
+                      styles.iconContainer,
+                      ej.completado && styles.iconContainerCompleted,
                     ]}
                   >
-                    {ejercicio.completado && (
-                      <Ionicons name="checkmark" size={16} color="white" />
+                    <Ionicons
+                      name={getParteCuerpoIcon(ej.parte_cuerpo)}
+                      size={22}
+                      color={ej.completado ? "#38A169" : "#0a7ea4"}
+                    />
+                  </View>
+
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardTitleRow}>
+                      <Text
+                        style={[
+                          styles.exerciseName,
+                          ej.completado && styles.textCompleted,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {ej.nombre}
+                      </Text>
+                      <View
+                        style={[
+                          styles.checkCircle,
+                          ej.completado && styles.checkCircleCompleted,
+                        ]}
+                      >
+                        {ej.completado && (
+                          <Ionicons name="checkmark" size={14} color="white" />
+                        )}
+                      </View>
+                    </View>
+
+                    {ej.descripcion ? (
+                      <Text style={styles.exerciseDesc} numberOfLines={2}>
+                        {ej.descripcion}
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.exerciseMeta}>
+                      <View style={styles.metaItem}>
+                        <Ionicons name="repeat-outline" size={13} color="#94a3b8" />
+                        <Text style={styles.metaText}>
+                          {ej.series} × {ej.repeticiones}
+                        </Text>
+                      </View>
+                      <View style={styles.metaDot} />
+                      <View style={styles.metaItem}>
+                        <Ionicons name="time-outline" size={13} color="#94a3b8" />
+                        <Text style={styles.metaText}>
+                          {ej.frecuencia_diaria}x / día
+                        </Text>
+                      </View>
+                      {ej.parte_cuerpo && (
+                        <>
+                          <View style={styles.metaDot} />
+                          <View style={styles.metaItem}>
+                            <Text style={styles.metaBadge}>
+                              {ej.parte_cuerpo}
+                            </Text>
+                          </View>
+                        </>
+                      )}
+                    </View>
+
+                    {ej.url_multimedia && (
+                      <TouchableOpacity
+                        style={styles.videoButton}
+                        onPress={() => setVideoUrl(ej.url_multimedia)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="play-circle" size={16} color="#2B6CB0" />
+                        <Text style={styles.videoButtonText}>Ver demo</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.exerciseName}>{ejercicio.nombre}</Text>
-                  {ejercicio.descripcion && (
-                    <Text style={styles.exerciseDesc}>
-                      {ejercicio.descripcion}
-                    </Text>
-                  )}
-                  <View style={styles.exerciseMeta}>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="repeat-outline" size={14} color="#666" />
-                      <Text style={styles.metaText}>
-                        {ejercicio.series} series × {ejercicio.repeticiones}
-                      </Text>
-                    </View>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={14} color="#666" />
-                      <Text style={styles.metaText}>
-                        {ejercicio.frecuencia_diaria}x al día
-                      </Text>
-                    </View>
-                  </View>
-                  {ejercicio.url_multimedia && (
-                    <TouchableOpacity
-                      style={styles.videoButton}
-                      onPress={() => setVideoUrl(ejercicio.url_multimedia)}
-                    >
-                      <Ionicons name="play-circle" size={18} color="white" />
-                      <Text style={styles.videoButtonText}>Ver demostración</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </Pressable>
             ))}
           </View>
         )}
+
+        <View style={styles.bottomPadding} />
       </ScrollView>
 
       <Modal visible={!!videoUrl} transparent animationType="fade">
@@ -288,18 +433,103 @@ const styles = StyleSheet.create({
     color: "#1a1a2e",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: 15,
+    color: "#64748b",
     marginTop: 4,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginTop: 16,
+    backgroundColor: "#fef2f2",
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#dc2626",
+  },
+  retryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2563eb",
+  },
+  progressCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  progressTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1a1a2e",
+  },
+  progressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "#e8f4f8",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#0a7ea4",
+    borderRadius: 4,
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0a7ea4",
+    minWidth: 36,
+    textAlign: "right",
   },
   emptyState: {
     alignItems: "center",
     paddingVertical: 60,
+    paddingHorizontal: 40,
   },
-  emptyText: {
-    fontSize: 16,
-    color: "#999",
-    marginTop: 12,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 20,
   },
   list: {
     padding: 20,
@@ -307,7 +537,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -317,29 +547,55 @@ const styles = StyleSheet.create({
   },
   cardCompleted: {
     backgroundColor: "#f0fff4",
-    borderColor: "#38A169",
+    borderColor: "#bbf7d0",
     borderWidth: 1,
   },
-  cardHeader: {
+  cardRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    gap: 14,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: "#e8f4f8",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 2,
+  },
+  iconContainerCompleted: {
+    backgroundColor: "#dcfce7",
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  exerciseName: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1a1a2e",
+    flex: 1,
+    marginRight: 8,
+  },
+  textCompleted: {
+    color: "#38A169",
+  },
+  exerciseDesc: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
+    lineHeight: 18,
   },
   checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
-    borderColor: "#ddd",
+    borderColor: "#d1d5db",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -347,22 +603,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#38A169",
     borderColor: "#38A169",
   },
-  cardBody: {
-    gap: 6,
-  },
-  exerciseName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1a1a2e",
-  },
-  exerciseDesc: {
-    fontSize: 14,
-    color: "#666",
-  },
   exerciseMeta: {
     flexDirection: "row",
-    gap: 16,
-    marginTop: 4,
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    flexWrap: "wrap",
   },
   metaItem: {
     flexDirection: "row",
@@ -370,23 +616,41 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    fontSize: 13,
-    color: "#666",
+    fontSize: 12,
+    color: "#64748b",
+  },
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#cbd5e1",
+  },
+  metaBadge: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#0a7ea4",
+    backgroundColor: "#e8f4f8",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: "hidden",
   },
   videoButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    alignSelf: "flex-start",
+    gap: 4,
     marginTop: 10,
-    backgroundColor: "#2B6CB0",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    backgroundColor: "#eff6ff",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
   },
   videoButtonText: {
-    color: "white",
-    fontSize: 14,
+    color: "#2B6CB0",
+    fontSize: 13,
     fontWeight: "600",
   },
   videoOverlay: {
@@ -410,5 +674,8 @@ const styles = StyleSheet.create({
   video: {
     width: "100%",
     height: "100%",
+  },
+  bottomPadding: {
+    height: 100,
   },
 });
