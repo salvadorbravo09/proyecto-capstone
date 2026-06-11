@@ -12,6 +12,7 @@ import AdminKinesiologos from "./pages/AdminKinesiologos";
 import AdminPacientes from "./pages/AdminPacientes";
 import AdminCitas from "./pages/AdminCitas";
 import AdminEjercicios from "./pages/AdminEjercicios";
+import AdminConfiguracion from "./pages/AdminConfiguracion";
 
 export const router = createBrowserRouter([
   {
@@ -74,7 +75,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "configuracion",
-        element: <div className="p-8"><h1>Configuración</h1></div>,
+        Component: AdminConfiguracion,
       },
     ],
   },

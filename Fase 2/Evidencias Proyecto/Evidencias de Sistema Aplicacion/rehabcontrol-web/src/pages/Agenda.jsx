@@ -320,14 +320,31 @@ export default function Agenda() {
         }
       }
 
-      const { data: estadoData, error: estadoError } = await supabase
+      const { data: estadoData } = await supabase
         .from("estados")
         .select("id")
         .eq("entidad", "citas")
         .eq("nombre", "agendada")
-        .single();
+        .maybeSingle();
 
-      if (estadoError) throw new Error("No se pudo obtener el estado inicial.");
+      let estadoId = estadoData?.id;
+
+      if (!estadoId) {
+        if (userRole === "admin") {
+          const { data: newEstado, error: createError } = await supabase
+            .from("estados")
+            .insert([{ nombre: "agendada", entidad: "citas" }])
+            .select("id")
+            .single();
+
+          if (createError) throw new Error("No se pudo crear el estado inicial.");
+          estadoId = newEstado.id;
+        } else {
+          throw new Error(
+            "El estado 'agendada' no existe. Solicita al administrador que lo cree desde Configuración."
+          );
+        }
+      }
 
       const payload = {
         paciente_id: formData.paciente_id,
@@ -335,7 +352,7 @@ export default function Agenda() {
         fecha: formData.fecha,
         hora: formData.hora,
         motivo_consulta: formData.motivo_consulta.trim() || null,
-        estado_id: estadoData.id,
+        estado_id: estadoId,
       };
 
       const { data: insertedCita, error } = await supabase
@@ -351,7 +368,7 @@ export default function Agenda() {
         await supabase.from("estado_historial").insert({
           entidad_tipo: "citas",
           entidad_id: insertedCita[0].id,
-          estado_id: estadoData.id,
+          estado_id: estadoId,
           comentario: "Cita agendada inicialmente",
         });
       }
