@@ -19,7 +19,7 @@ type Paciente = {
   id: string;
   nombre: string;
   apellido: string;
-  prevision: string | null;
+  prevision_id: string | null;
 };
 
 type Cita = {
@@ -65,7 +65,7 @@ export default function HomeScreen() {
 
       const { data: pacienteData } = await supabase
         .from("pacientes")
-        .select("id, nombre, apellido, prevision")
+        .select("id, nombre, apellido, prevision_id")
         .eq("usuario_id", user.id)
         .single();
 

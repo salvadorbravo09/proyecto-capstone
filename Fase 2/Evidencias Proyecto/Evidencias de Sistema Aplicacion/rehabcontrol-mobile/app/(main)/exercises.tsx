@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Video, ResizeMode } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Colors } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 
@@ -30,6 +30,14 @@ export default function ExercisesScreen() {
   const [loading, setLoading] = useState(true);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const player = useVideoPlayer(null);
+
+  useEffect(() => {
+    if (videoUrl) {
+      player.replace(videoUrl);
+      player.play();
+    }
+  }, [videoUrl]);
 
   useEffect(() => {
     fetchEjercicios();
@@ -243,13 +251,11 @@ export default function ExercisesScreen() {
               <Ionicons name="close" size={28} color="white" />
             </TouchableOpacity>
             {videoUrl && (
-              <Video
-                key={videoUrl}
-                source={{ uri: videoUrl }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
+              <VideoView
                 style={styles.video}
+                player={player}
+                contentFit="contain"
+                nativeControls
               />
             )}
           </View>
