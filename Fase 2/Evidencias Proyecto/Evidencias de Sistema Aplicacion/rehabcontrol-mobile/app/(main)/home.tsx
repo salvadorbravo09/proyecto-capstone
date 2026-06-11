@@ -31,20 +31,14 @@ type Cita = {
 };
 
 type Ejercicio = {
-  id: string;
+  plan_detalle_id: string;
   nombre: string;
   descripcion: string | null;
   parte_cuerpo: string | null;
   series: number;
   repeticiones: number;
   frecuencia_diaria: number;
-};
-
-type ProgresoRecord = {
-  id: string;
-  fecha_registro: string;
   completado: boolean;
-  nivel_dolor: number | null;
 };
 
 export default function HomeScreen() {
@@ -54,7 +48,6 @@ export default function HomeScreen() {
   const [paciente, setPaciente] = useState<Paciente | null>(null);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
-  const [progresoHoy, setProgresoHoy] = useState<ProgresoRecord | null>(null);
   const [totalEjercicios, setTotalEjercicios] = useState(0);
   const [completados, setCompletados] = useState(0);
 
@@ -77,7 +70,7 @@ export default function HomeScreen() {
         .toISOString()
         .split("T")[0];
 
-      const [citasRes, planRes, progresoRes] = await Promise.all([
+      const [citasRes, planRes] = await Promise.all([
         supabase
           .from("citas")
           .select("id, fecha, hora, estados(nombre), kinesiologo:kinesiologos(nombre, apellido)")
@@ -98,59 +91,58 @@ export default function HomeScreen() {
             )`
           )
           .eq("paciente_id", pacienteData.id)
-          .eq("estado", "activo"),
-        supabase
-          .from("seguimiento_progreso")
-          .select("id, fecha_registro, completado, nivel_dolor")
-          .eq("plan_detalle_id", "")
-          .gte("fecha_registro", today)
-          .limit(1),
+          .is("fecha_fin", null),
       ]);
 
       setCitas(citasRes.data || []);
 
       const ejerciciosList: Ejercicio[] = [];
-      let total = 0;
-      let completadosCount = 0;
+      const detalleIds: string[] = [];
+      const rawEjercicios: { detalle: any; ejercicio: any }[] = [];
 
       if (planRes.data) {
         for (const plan of planRes.data) {
-          if (plan.plan_detalle) {
-            for (const detalle of plan.plan_detalle) {
-              const ejercicio = Array.isArray(detalle.ejercicio)
-                ? detalle.ejercicio[0]
-                : detalle.ejercicio;
-
-              if (ejercicio) {
-                ejerciciosList.push({
-                  id: ejercicio.id,
-                  nombre: ejercicio.nombre,
-                  descripcion: ejercicio.descripcion,
-                  parte_cuerpo: ejercicio.parte_cuerpo,
-                  series: detalle.series,
-                  repeticiones: detalle.repeticiones,
-                  frecuencia_diaria: detalle.frecuencia_diaria,
-                });
-                total++;
-
-                const { data: progData } = await supabase
-                  .from("seguimiento_progreso")
-                  .select("id, fecha_registro, completado, nivel_dolor")
-                  .eq("plan_detalle_id", detalle.id)
-                  .gte("fecha_registro", today)
-                  .limit(1);
-
-                if (progData && progData.length > 0 && progData[0].completado) {
-                  completadosCount++;
-                }
-              }
-            }
+          if (!plan.plan_detalle) continue;
+          for (const detalle of plan.plan_detalle) {
+            const ejercicio = Array.isArray(detalle.ejercicio)
+              ? detalle.ejercicio[0]
+              : detalle.ejercicio;
+            if (!ejercicio) continue;
+            detalleIds.push(detalle.id);
+            rawEjercicios.push({ detalle, ejercicio });
           }
         }
       }
 
+      const { data: progresos } = await supabase
+        .from("seguimiento_progreso")
+        .select("plan_detalle_id, completado")
+        .in("plan_detalle_id", detalleIds)
+        .gte("fecha_registro", today);
+
+      const progresoMap = new Map<string, boolean>();
+      progresos?.forEach((p: { plan_detalle_id: string; completado: boolean }) => {
+        progresoMap.set(p.plan_detalle_id, p.completado);
+      });
+
+      let completadosCount = 0;
+      for (const { detalle, ejercicio } of rawEjercicios) {
+        const completado = progresoMap.get(detalle.id) || false;
+        if (completado) completadosCount++;
+        ejerciciosList.push({
+          plan_detalle_id: detalle.id,
+          nombre: ejercicio.nombre,
+          descripcion: ejercicio.descripcion,
+          parte_cuerpo: ejercicio.parte_cuerpo,
+          series: detalle.series,
+          repeticiones: detalle.repeticiones,
+          frecuencia_diaria: detalle.frecuencia_diaria,
+          completado,
+        });
+      }
+
       setEjercicios(ejerciciosList);
-      setTotalEjercicios(total);
+      setTotalEjercicios(ejerciciosList.length);
       setCompletados(completadosCount);
     } catch (error) {
       console.error("Error fetching home data:", error);
@@ -328,20 +320,30 @@ export default function HomeScreen() {
           ) : (
             ejercicios.slice(0, 3).map((ejercicio) => (
               <Pressable
-                key={ejercicio.id}
-                style={styles.exerciseCard}
+                key={ejercicio.plan_detalle_id}
+                style={[styles.exerciseCard, ejercicio.completado && styles.exerciseCardCompleted]}
                 onPress={() => router.push("/(main)/exercises")}
               >
-                <View style={styles.exerciseIcon}>
-                  <Ionicons name="fitness" size={20} color="#0a7ea4" />
+                <View style={[styles.exerciseIcon, ejercicio.completado && styles.exerciseIconCompleted]}>
+                  <Ionicons
+                    name="fitness"
+                    size={20}
+                    color={ejercicio.completado ? "#38A169" : "#0a7ea4"}
+                  />
                 </View>
                 <View style={styles.exerciseInfo}>
-                  <Text style={styles.exerciseName}>{ejercicio.nombre}</Text>
+                  <Text style={[styles.exerciseName, ejercicio.completado && styles.textCompleted]}>
+                    {ejercicio.nombre}
+                  </Text>
                   <Text style={styles.exerciseDuration}>
                     {ejercicio.series} series × {ejercicio.repeticiones} reps
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                {ejercicio.completado ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#38A169" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                )}
               </Pressable>
             ))
           )}
@@ -563,6 +565,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginTop: 2,
+  },
+  exerciseCardCompleted: {
+    backgroundColor: "#f0fff4",
+    borderColor: "#bbf7d0",
+    borderWidth: 1,
+  },
+  exerciseIconCompleted: {
+    backgroundColor: "#dcfce7",
+  },
+  textCompleted: {
+    color: "#38A169",
   },
   trackButton: {
     backgroundColor: "#0a7ea4",
