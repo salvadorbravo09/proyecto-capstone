@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router";
-import { ArrowLeft, Calendar, Clock, User, Phone, Mail, CalendarDays, Activity, TrendingUp, Dumbbell, Edit3, Award, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, User, Phone, Mail, CalendarDays, Activity, TrendingUp, Dumbbell, Edit3, Award, AlertCircle, CheckCircle2, Loader2, FileText, Plus, Save, MessageSquare } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Modal } from "../components/ui/modal";
 import PrescripcionModal from "../components/PrescripcionModal";
 import { supabase } from "@/lib/supabase";
 import { format, parseISO, subWeeks, startOfWeek, endOfWeek } from "date-fns";
@@ -30,6 +32,25 @@ export default function PacienteFicha() {
   const [evolucionLoading, setEvolucionLoading] = useState(true);
   const [evolucionError, setEvolucionError] = useState(null);
   const [ultimaSemanaCompletado, setUltimaSemanaCompletado] = useState(0);
+
+  const [evaluacion, setEvaluacion] = useState(null);
+  const [evaluacionLoading, setEvaluacionLoading] = useState(true);
+  const [showEvalModal, setShowEvalModal] = useState(false);
+  const [savingEval, setSavingEval] = useState(false);
+  const [evalForm, setEvalForm] = useState({
+    motivo_tratamiento: "",
+    diagnostico: "",
+    fecha_inicio: "",
+    notas_evolucion: "",
+  });
+
+  const [dailyDetails, setDailyDetails] = useState([]);
+  const [dailyDetailsLoading, setDailyDetailsLoading] = useState(true);
+  const [notasDiarias, setNotasDiarias] = useState([]);
+  const [showNotaDiariaModal, setShowNotaDiariaModal] = useState(false);
+  const [savingNotaDiaria, setSavingNotaDiaria] = useState(false);
+  const [notaDiariaFecha, setNotaDiariaFecha] = useState("");
+  const [notaDiariaTexto, setNotaDiariaTexto] = useState("");
 
   useEffect(() => {
     async function init() {
@@ -73,6 +94,35 @@ export default function PacienteFicha() {
         .select("*")
         .order("nombre", { ascending: true });
       setBiblioteca(ejData || []);
+
+      // Fetch existing evaluation
+      const { data: fichaData } = await supabase
+        .from("fichas")
+        .select("id, motivo_tratamiento, fecha_inicio")
+        .eq("paciente_id", id)
+        .order("fecha_inicio", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: clinicaData } = await supabase
+        .from("fichas_clinicas")
+        .select("id, diagnostico, notas_evolucion")
+        .eq("paciente_id", id)
+        .order("fecha_atencion", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fichaData || clinicaData) {
+        setEvaluacion({
+          fichaId: fichaData?.id || null,
+          clinicaId: clinicaData?.id || null,
+          motivo_tratamiento: fichaData?.motivo_tratamiento || "",
+          fecha_inicio: fichaData?.fecha_inicio || "",
+          diagnostico: clinicaData?.diagnostico || "",
+          notas_evolucion: clinicaData?.notas_evolucion || "",
+        });
+      }
+      setEvaluacionLoading(false);
 
       const { data: planData } = await supabase
         .from("planes_tratamiento")
@@ -218,6 +268,78 @@ export default function PacienteFicha() {
     return () => { cancelled = true; };
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+
+    async function fetchDailyDetails() {
+      setDailyDetailsLoading(true);
+
+      const { data: plan } = await supabase
+        .from("planes_tratamiento")
+        .select("id")
+        .eq("paciente_id", id)
+        .is("fecha_fin", null)
+        .maybeSingle();
+
+      if (plan) {
+        const { data: detalles } = await supabase
+          .from("plan_detalle")
+          .select("id, ejercicio:ejercicios(id, nombre, parte_cuerpo)")
+          .eq("plan_id", plan.id);
+
+        if (detalles && detalles.length > 0) {
+          const detalleIds = detalles.map(d => d.id);
+          const treintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          const { data: progresos } = await supabase
+            .from("seguimiento_progreso")
+            .select("id, plan_detalle_id, fecha_registro, completado, nivel_dolor")
+            .in("plan_detalle_id", detalleIds)
+            .gte("fecha_registro", treintaDiasAtras)
+            .order("fecha_registro", { ascending: false });
+
+          const ejercicioMap = {};
+          for (const d of detalles) {
+            ejercicioMap[d.id] = d.ejercicio;
+          }
+
+          const dayMap = {};
+          for (const p of progresos || []) {
+            const day = p.fecha_registro.split("T")[0];
+            if (!dayMap[day]) {
+              dayMap[day] = { fecha: day, ejercicios: [], total: 0, completados: 0, dolor: null };
+            }
+            dayMap[day].ejercicios.push({
+              ejercicio: ejercicioMap[p.plan_detalle_id],
+              completado: p.completado,
+              dolor: p.nivel_dolor,
+            });
+            dayMap[day].total++;
+            if (p.completado) dayMap[day].completados++;
+            if (p.nivel_dolor != null) dayMap[day].dolor = p.nivel_dolor;
+          }
+
+          setDailyDetails(Object.values(dayMap).sort((a, b) => b.fecha.localeCompare(a.fecha)));
+        } else {
+          setDailyDetails([]);
+        }
+      } else {
+        setDailyDetails([]);
+      }
+
+      const { data: notas } = await supabase
+        .from("notas_evolucion_diaria")
+        .select("id, fecha, notas")
+        .eq("paciente_id", id)
+        .order("fecha", { ascending: false });
+
+      setNotasDiarias(notas || []);
+      setDailyDetailsLoading(false);
+    }
+
+    fetchDailyDetails();
+  }, [id]);
+
   function agregarPorSemana(progresos) {
     const weekMap = new Map();
 
@@ -333,6 +455,179 @@ export default function PacienteFicha() {
     }
 
     setShowPrescripcion(false);
+  }
+
+  async function handleSaveEvaluacion(e) {
+    e.preventDefault();
+    if (!kinesiologoId) return;
+    setSavingEval(true);
+
+    try {
+      let fichaId = evaluacion?.fichaId;
+
+      if (fichaId) {
+        await supabase
+          .from("fichas")
+          .update({
+            motivo_tratamiento: evalForm.motivo_tratamiento.trim() || null,
+            fecha_inicio: evalForm.fecha_inicio || null,
+          })
+          .eq("id", fichaId);
+      } else {
+        const { data: newFicha } = await supabase
+          .from("fichas")
+          .insert([{
+            paciente_id: id,
+            motivo_tratamiento: evalForm.motivo_tratamiento.trim() || null,
+            fecha_inicio: evalForm.fecha_inicio || new Date().toISOString().split("T")[0],
+          }])
+          .select("id")
+          .single();
+        fichaId = newFicha?.id;
+      }
+
+      if (evaluacion?.clinicaId) {
+        await supabase
+          .from("fichas_clinicas")
+          .update({
+            diagnostico: evalForm.diagnostico.trim() || null,
+            notas_evolucion: evalForm.notas_evolucion.trim() || null,
+          })
+          .eq("id", evaluacion.clinicaId);
+      } else {
+        await supabase
+          .from("fichas_clinicas")
+          .insert([{
+            paciente_id: id,
+            kinesiologo_id: kinesiologoId,
+            diagnostico: evalForm.diagnostico.trim() || null,
+            notas_evolucion: evalForm.notas_evolucion.trim() || null,
+          }]);
+      }
+
+      // Refresh evaluation data
+      const { data: refFicha } = await supabase
+        .from("fichas")
+        .select("id, motivo_tratamiento, fecha_inicio")
+        .eq("id", fichaId)
+        .maybeSingle();
+
+      const { data: refClinica } = await supabase
+        .from("fichas_clinicas")
+        .select("id, diagnostico, notas_evolucion")
+        .eq("paciente_id", id)
+        .order("fecha_atencion", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setEvaluacion({
+        fichaId: refFicha?.id || null,
+        clinicaId: refClinica?.id || null,
+        motivo_tratamiento: refFicha?.motivo_tratamiento || "",
+        fecha_inicio: refFicha?.fecha_inicio || "",
+        diagnostico: refClinica?.diagnostico || "",
+        notas_evolucion: refClinica?.notas_evolucion || "",
+      });
+      setShowEvalModal(false);
+    } catch (error) {
+      console.error("Error guardando evaluación:", error);
+    } finally {
+      setSavingEval(false);
+    }
+  }
+
+  async function handleSaveNotaDiaria(e) {
+    e.preventDefault();
+    if (!kinesiologoId || !notaDiariaFecha || !notaDiariaTexto.trim()) return;
+    setSavingNotaDiaria(true);
+
+    try {
+      const existing = notasDiarias.find(n => n.fecha === notaDiariaFecha);
+
+      if (existing) {
+        await supabase
+          .from("notas_evolucion_diaria")
+          .update({ notas: notaDiariaTexto.trim(), updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+
+        setNotasDiarias(prev =>
+          prev.map(n => n.id === existing.id ? { ...n, notas: notaDiariaTexto.trim() } : n)
+        );
+      } else {
+        const { data: newNota } = await supabase
+          .from("notas_evolucion_diaria")
+          .insert([{
+            paciente_id: id,
+            kinesiologo_id: kinesiologoId,
+            fecha: notaDiariaFecha,
+            notas: notaDiariaTexto.trim(),
+          }])
+          .select("id, fecha, notas")
+          .single();
+
+        if (newNota) {
+          setNotasDiarias(prev => [newNota, ...prev]);
+        }
+      }
+
+      setShowNotaDiariaModal(false);
+      setNotaDiariaTexto("");
+    } catch (error) {
+      console.error("Error guardando nota diaria:", error);
+    } finally {
+      setSavingNotaDiaria(false);
+    }
+  }
+
+  async function handleSaveDolor(fecha, nivel) {
+    if (!kinesiologoId) return;
+
+    const { data: plan } = await supabase
+      .from("planes_tratamiento")
+      .select("id")
+      .eq("paciente_id", id)
+      .is("fecha_fin", null)
+      .maybeSingle();
+
+    if (!plan) return;
+
+    const { data: detalles } = await supabase
+      .from("plan_detalle")
+      .select("id")
+      .eq("plan_id", plan.id)
+      .limit(1);
+
+    if (!detalles || detalles.length === 0) return;
+
+    const diaInicio = `${fecha}T00:00:00`;
+    const diaFin = `${fecha}T23:59:59`;
+
+    const { data: existing } = await supabase
+      .from("seguimiento_progreso")
+      .select("id")
+      .eq("plan_detalle_id", detalles[0].id)
+      .gte("fecha_registro", diaInicio)
+      .lte("fecha_registro", diaFin)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from("seguimiento_progreso")
+        .update({ nivel_dolor: nivel })
+        .eq("id", existing[0].id);
+    } else {
+      await supabase
+        .from("seguimiento_progreso")
+        .insert([{
+          plan_detalle_id: detalles[0].id,
+          fecha_registro: diaInicio,
+          nivel_dolor: nivel,
+        }]);
+    }
+
+    setDailyDetails(prev =>
+      prev.map(d => d.fecha === fecha ? { ...d, dolor: nivel } : d)
+    );
   }
 
   if (loadingPaciente) {
@@ -489,6 +784,94 @@ export default function PacienteFicha() {
                 <p className="font-medium text-slate-900">{paciente.prevision}</p>
               </div>
             </div>
+
+            {/* Evaluation section */}
+            <div className="border-t border-slate-200 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900">Evaluación Inicial</h2>
+                {!evaluacionLoading && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      if (evaluacion) {
+                        setEvalForm({
+                          motivo_tratamiento: evaluacion.motivo_tratamiento,
+                          diagnostico: evaluacion.diagnostico,
+                          fecha_inicio: evaluacion.fecha_inicio || new Date().toISOString().split("T")[0],
+                          notas_evolucion: evaluacion.notas_evolucion,
+                        });
+                      } else {
+                        setEvalForm({
+                          motivo_tratamiento: "",
+                          diagnostico: "",
+                          fecha_inicio: new Date().toISOString().split("T")[0],
+                          notas_evolucion: "",
+                        });
+                      }
+                      setShowEvalModal(true);
+                    }}
+                  >
+                    {evaluacion ? <Edit3 className="size-4" /> : <Plus className="size-4" />}
+                    {evaluacion ? "Editar evaluación" : "Registrar evaluación inicial"}
+                  </Button>
+                )}
+              </div>
+
+              {evaluacionLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-[#2B6CB0]" />
+                </div>
+              ) : evaluacion && (evaluacion.motivo_tratamiento || evaluacion.diagnostico || evaluacion.fecha_inicio || evaluacion.notas_evolucion) ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {evaluacion.motivo_tratamiento ? (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <FileText className="size-4" />
+                        Motivo del tratamiento
+                      </div>
+                      <p className="font-medium text-slate-900">{evaluacion.motivo_tratamiento}</p>
+                    </div>
+                  ) : null}
+                  {evaluacion.diagnostico ? (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <Activity className="size-4" />
+                        Diagnóstico
+                      </div>
+                      <p className="font-medium text-slate-900">{evaluacion.diagnostico}</p>
+                    </div>
+                  ) : null}
+                  {evaluacion.fecha_inicio ? (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <CalendarDays className="size-4" />
+                        Fecha de inicio
+                      </div>
+                      <p className="font-medium text-slate-900">
+                        {format(parseISO(evaluacion.fecha_inicio), "dd MMMM yyyy", { locale: es })}
+                      </p>
+                    </div>
+                  ) : null}
+                  {evaluacion.notas_evolucion ? (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 md:col-span-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <FileText className="size-4" />
+                        Notas de evolución
+                      </div>
+                      <p className="font-medium text-slate-900 whitespace-pre-wrap">{evaluacion.notas_evolucion}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-400 rounded-xl border border-dashed border-slate-300">
+                  <FileText className="size-10 mb-2 opacity-50" />
+                  <p className="text-sm font-medium text-slate-500">No hay evaluación inicial registrada</p>
+                  <p className="text-xs text-slate-400 mt-1">Registra la evaluación inicial del paciente para comenzar su tratamiento.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -623,8 +1006,8 @@ export default function PacienteFicha() {
 
         {/* Tab: Evolución */}
         {activeTab === "evolucion" && (
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-6">Evolución del tratamiento</h2>
+          <div className="p-6 space-y-8">
+            <h2 className="text-lg font-semibold text-slate-900">Evolución del tratamiento</h2>
 
             {evolucionLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -644,7 +1027,7 @@ export default function PacienteFicha() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-medium text-slate-500 mb-4">Cumplimiento semanal</h3>
                     <div className="space-y-3">
@@ -701,9 +1084,216 @@ export default function PacienteFicha() {
                 )}
               </>
             )}
+
+            {/* Daily record section */}
+            <div className="border-t border-slate-200 pt-8">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Registro Diario</h3>
+
+              {dailyDetailsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-[#2B6CB0]" />
+                </div>
+              ) : dailyDetails.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-400 rounded-xl border border-dashed border-slate-300">
+                  <CalendarDays className="size-10 mb-2 opacity-50" />
+                  <p className="text-sm font-medium text-slate-500">Sin registro diario en los últimos 30 días</p>
+                  <p className="text-xs text-slate-400 mt-1">Los datos aparecerán cuando el paciente registre su progreso desde la app móvil.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {dailyDetails.map((day) => {
+                    const nota = notasDiarias.find(n => n.fecha === day.fecha);
+                    const cumplimiento = day.total > 0 ? Math.round((day.completados / day.total) * 100) : 0;
+                    const dolorColor = day.dolor != null
+                      ? day.dolor <= 3
+                        ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                        : day.dolor <= 6
+                          ? "text-amber-600 bg-amber-50 border-amber-200"
+                          : "text-rose-600 bg-rose-50 border-rose-200"
+                      : "text-slate-400 bg-slate-50 border-slate-200";
+
+                    return (
+                      <div key={day.fecha} className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="size-4 text-slate-400" />
+                            <span className="font-medium text-slate-900">
+                              {format(parseISO(day.fecha), "EEEE d MMMM yyyy", { locale: es })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500">
+                              {day.completados}/{day.total} ejercicios
+                            </span>
+                            <div className="h-1.5 w-16 rounded-full bg-slate-100 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#2B6CB0] to-cyan-400"
+                                style={{ width: `${cumplimiento}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Pain level */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500">Dolor:</span>
+                            {day.dolor != null ? (
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${dolorColor}`}>
+                                <AlertCircle className="size-3" />
+                                {day.dolor}/10
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">No registrado</span>
+                            )}
+                            <select
+                              value={day.dolor ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) handleSaveDolor(day.fecha, parseInt(val));
+                              }}
+                              className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 outline-none focus:border-[#2B6CB0]"
+                            >
+                              <option value="">{day.dolor != null ? "Cambiar" : "Registrar"}</option>
+                              {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Notes */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500">Nota:</span>
+                            {nota ? (
+                              <span className="text-xs text-slate-700 truncate max-w-[200px]">{nota.notas}</span>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">Sin nota</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNotaDiariaFecha(day.fecha);
+                                setNotaDiariaTexto(nota?.notas || "");
+                                setShowNotaDiariaModal(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-[#2B6CB0] hover:text-[#2C5282] transition-colors"
+                            >
+                              <MessageSquare className="size-3" />
+                              {nota ? "Editar" : "Agregar"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Evaluation Modal */}
+      <Modal
+        open={showEvalModal}
+        onClose={() => setShowEvalModal(false)}
+        title={evaluacion ? "Editar evaluación inicial" : "Registrar evaluación inicial"}
+      >
+        <form onSubmit={handleSaveEvaluacion} className="space-y-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Motivo del tratamiento</label>
+            <textarea
+              placeholder="Describe el motivo por el que el paciente inicia el tratamiento..."
+              value={evalForm.motivo_tratamiento}
+              onChange={(e) => setEvalForm({ ...evalForm, motivo_tratamiento: e.target.value })}
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#2B6CB0] resize-none"
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Diagnóstico</label>
+            <textarea
+              placeholder="Diagnóstico clínico..."
+              value={evalForm.diagnostico}
+              onChange={(e) => setEvalForm({ ...evalForm, diagnostico: e.target.value })}
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#2B6CB0] resize-none"
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Fecha de inicio</label>
+            <Input
+              type="date"
+              value={evalForm.fecha_inicio}
+              onChange={(e) => setEvalForm({ ...evalForm, fecha_inicio: e.target.value })}
+              max={format(new Date(), "yyyy-MM-dd")}
+            />
+          </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Notas de evolución</label>
+            <textarea
+              placeholder="Notas adicionales sobre la evaluación inicial..."
+              value={evalForm.notas_evolucion}
+              onChange={(e) => setEvalForm({ ...evalForm, notas_evolucion: e.target.value })}
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#2B6CB0] resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowEvalModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="bg-[#2B6CB0] hover:bg-[#2C5282]"
+              disabled={savingEval}
+            >
+              {savingEval ? "Guardando..." : evaluacion ? "Guardar cambios" : "Registrar evaluación"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Nota diaria modal */}
+      <Modal
+        open={showNotaDiariaModal}
+        onClose={() => setShowNotaDiariaModal(false)}
+        title={`Nota clínica - ${notaDiariaFecha ? format(parseISO(notaDiariaFecha), "EEEE d MMMM yyyy", { locale: es }) : ""}`}
+      >
+        <form onSubmit={handleSaveNotaDiaria} className="space-y-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Nota de evolución</label>
+            <textarea
+              placeholder="Escribe tu observación clínica para esta fecha..."
+              value={notaDiariaTexto}
+              onChange={(e) => setNotaDiariaTexto(e.target.value)}
+              rows={5}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#2B6CB0] resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowNotaDiariaModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="bg-[#2B6CB0] hover:bg-[#2C5282] gap-2"
+              disabled={savingNotaDiaria || !notaDiariaTexto.trim()}
+            >
+              <Save className="size-4" />
+              {savingNotaDiaria ? "Guardando..." : "Guardar nota"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Prescripcion Modal */}
       {showPrescripcion && rutina && (
