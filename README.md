@@ -3,7 +3,7 @@
 **Proyecto Capstone** - Aplicación web moderna para la administración integral de clínicas de kinesiología
 
 ![Status](https://img.shields.io/badge/Status-En%20Desarrollo-yellow)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![Version](https://img.shields.io/badge/Version-1.1.0-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
