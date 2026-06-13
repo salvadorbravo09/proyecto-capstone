@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Layout from "./components/Layout";
 import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/Dashboard";
@@ -22,6 +23,10 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     Component: Login,
+  },
+  {
+    path: "/reset-password",
+    Component: ResetPassword,
   },
   {
     path: "/",
