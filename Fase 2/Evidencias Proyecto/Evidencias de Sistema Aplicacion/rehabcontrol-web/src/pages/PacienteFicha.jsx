@@ -63,6 +63,7 @@ export default function PacienteFicha() {
           telefono: pacData.telefono || "",
           fecha_nacimiento: pacData.fecha_nacimiento || "",
           prevision: previsionNombre,
+          activo: pacData.activo ?? true,
         });
       }
       setLoadingPaciente(false);
@@ -371,10 +372,42 @@ export default function PacienteFicha() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200">
-              <Activity className="size-3.5" />
-              Activo
-            </span>
+            {paciente.activo ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200">
+                <Activity className="size-3.5" />
+                Activo
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-600 border border-rose-200">
+                <Activity className="size-3.5" />
+                Inactivo
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                const confirmar = confirm(
+                  `¿${paciente.activo ? "Desactivar" : "Reactivar"} a ${paciente.nombre} ${paciente.apellido}?${
+                    paciente.activo ? " El paciente no podrá acceder a la app móvil." : ""
+                  }`,
+                );
+                if (!confirmar) return;
+                const { error } = await supabase
+                  .from("pacientes")
+                  .update({ activo: !paciente.activo })
+                  .eq("id", paciente.id);
+                if (!error) {
+                  setPaciente((prev) => ({ ...prev, activo: !prev.activo }));
+                }
+              }}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                paciente.activo
+                  ? "text-rose-600 border-rose-200 hover:bg-rose-50"
+                  : "text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+              }`}
+            >
+              {paciente.activo ? "Desactivar" : "Reactivar"}
+            </button>
           </div>
         </div>
       </div>

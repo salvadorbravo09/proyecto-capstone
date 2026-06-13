@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
-import { Search, Plus, User, Loader2, Copy } from "lucide-react";
+import { Search, Plus, Pencil, User, Loader2, Copy, Activity } from "lucide-react";
 import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { format, subDays } from "date-fns";
@@ -23,6 +23,7 @@ export default function Pacientes() {
   const [previsiones, setPrevisiones] = useState([]);
   const [errores, setErrores] = useState({});
   const [camposVerificando, setCamposVerificando] = useState({});
+  const [editando, setEditando] = useState(null);
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -96,13 +97,11 @@ export default function Pacientes() {
     }
   }
 
-  async function verificarUnico(tabla, campo, valor) {
+  async function verificarUnico(tabla, campo, valor, excluirId) {
     setCamposVerificando((prev) => ({ ...prev, [campo]: true }));
-    const { data } = await supabase
-      .from(tabla)
-      .select("id")
-      .eq(campo, valor)
-      .maybeSingle();
+    let query = supabase.from(tabla).select("id").eq(campo, valor);
+    if (excluirId) query = query.neq("id", excluirId);
+    const { data } = await query.maybeSingle();
     setCamposVerificando((prev) => ({ ...prev, [campo]: false }));
     return !!data;
   }
@@ -132,7 +131,7 @@ export default function Pacientes() {
       return;
     }
 
-    const existe = await verificarUnico("pacientes", "rut", clean);
+    const existe = await verificarUnico("pacientes", "rut", clean, editando?.id);
     if (existe) {
       setErrores((prev) => ({ ...prev, rut: "Este RUT ya está registrado." }));
       return;
@@ -165,7 +164,7 @@ export default function Pacientes() {
       return;
     }
 
-    const existe = await verificarUnico("pacientes", "telefono", completo);
+    const existe = await verificarUnico("pacientes", "telefono", completo, editando?.id);
     if (existe) {
       setErrores((prev) => ({ ...prev, telefono: "Este teléfono ya está registrado." }));
       return;
@@ -178,6 +177,23 @@ export default function Pacientes() {
     return Object.values(errores).some((v) => v !== "");
   }
 
+  function abrirEdicion(paciente) {
+    setEditando(paciente);
+    setFormData({
+      nombre: paciente.nombre || "",
+      apellido: paciente.apellido || "",
+      rut: paciente.rut || "",
+      telefono: (paciente.telefono || "").replace("+569", ""),
+      prevision_id: paciente.prevision_id || "",
+      fecha_nacimiento: paciente.fecha_nacimiento || "",
+      email: paciente.email || "",
+    });
+    setErrores({});
+    setErrorMessage("");
+    setCreatedCredentials(null);
+    setShowModal(true);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
@@ -185,15 +201,6 @@ export default function Pacientes() {
     setCreatedCredentials(null);
 
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session?.session?.access_token;
-
-      if (!token) {
-        setErrorMessage("No hay sesión activa.");
-        setSaving(false);
-        return;
-      }
-
       const rutClean = unformatRut(formData.rut) || null;
       const telefonoCompleto = formData.telefono ? `+569${formData.telefono}` : null;
 
@@ -213,22 +220,44 @@ export default function Pacientes() {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke(
-        "create-paciente",
-        {
-          body: payload,
-          headers: {
-            Authorization: `Bearer ${token}`,
+      if (editando) {
+        const { error } = await supabase
+          .from("pacientes")
+          .update(payload)
+          .eq("id", editando.id);
+
+        if (error) throw error;
+
+        setShowModal(false);
+        setEditando(null);
+      } else {
+        const { data: session } = await supabase.auth.getSession();
+        const token = session?.session?.access_token;
+
+        if (!token) {
+          setErrorMessage("No hay sesión activa.");
+          setSaving(false);
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke(
+          "create-paciente",
+          {
+            body: payload,
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
+        );
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setCreatedCredentials({
-        email: data.email,
-        nombre: data.nombre,
-      });
+        setCreatedCredentials({
+          email: data.email,
+          nombre: data.nombre,
+        });
+      }
+
       setFormData({
         nombre: "",
         apellido: "",
@@ -241,8 +270,8 @@ export default function Pacientes() {
       setErrores({});
       fetchData();
     } catch (error) {
-      console.error("Error creando paciente:", error);
-      setErrorMessage(error.message || "No se pudo crear el paciente.");
+      console.error("Error guardando paciente:", error);
+      setErrorMessage(error.message || "No se pudo guardar el paciente.");
     } finally {
       setSaving(false);
     }
@@ -377,23 +406,69 @@ export default function Pacientes() {
                   <td className="p-4">{paciente.rut || "-"}</td>
                   <td className="p-4">{paciente.email || "-"}</td>
                   <td className="p-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        paciente.usuario_id
-                          ? "bg-[#38A169] text-white"
-                          : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {paciente.usuario_id ? "Registrado" : "Pendiente"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          paciente.usuario_id
+                            ? "bg-[#38A169] text-white"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {paciente.usuario_id ? "Registrado" : "Pendiente"}
+                      </span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          paciente.activo !== false
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        {paciente.activo !== false ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-4">{paciente.cantidadCitas}</td>
                   <td className="p-4">
-                    <Link to={`/pacientes/${paciente.id}/ficha`}>
-                      <Button variant="outline" size="sm">
-                        Ver ficha
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const confirmar = confirm(
+                            `¿${paciente.activo !== false ? "Desactivar" : "Reactivar"} a ${paciente.nombre} ${paciente.apellido}?${
+                              paciente.activo !== false ? " El paciente no podrá acceder a la app móvil." : ""
+                            }`,
+                          );
+                          if (!confirmar) return;
+                          await supabase
+                            .from("pacientes")
+                            .update({ activo: paciente.activo === false })
+                            .eq("id", paciente.id);
+                          fetchData();
+                        }}
+                        className={`${
+                          paciente.activo !== false
+                            ? "text-slate-400 hover:text-rose-500"
+                            : "text-slate-400 hover:text-emerald-500"
+                        }`}
+                        title={paciente.activo !== false ? "Desactivar paciente" : "Reactivar paciente"}
+                      >
+                        <Activity className={`size-4 ${paciente.activo !== false ? "" : "opacity-50"}`} />
                       </Button>
-                    </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => abrirEdicion(paciente)}
+                        className="text-slate-500 hover:text-[#2B6CB0]"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Link to={`/pacientes/${paciente.id}/ficha`}>
+                        <Button variant="outline" size="sm">
+                          Ver ficha
+                        </Button>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -406,12 +481,13 @@ export default function Pacientes() {
         open={showModal}
         onClose={() => {
           setShowModal(false);
+          setEditando(null);
           setErrorMessage("");
           setCreatedCredentials(null);
         }}
-        title="Nuevo paciente"
+        title={editando ? "Editar paciente" : "Nuevo paciente"}
       >
-        {createdCredentials ? (
+        {createdCredentials && !editando ? (
           <div className="space-y-4">
             <div className="rounded-xl border border-[#38A169] bg-green-50 p-4">
               <p className="font-medium text-[#38A169] mb-2">
@@ -576,7 +652,7 @@ export default function Pacientes() {
                   className="bg-[#2B6CB0] hover:bg-[#2C5282]"
                   disabled={saving || hayErrores()}
                 >
-                  {saving ? "Creando..." : "Crear paciente"}
+                  {saving ? "Guardando..." : editando ? "Guardar cambios" : "Crear paciente"}
                 </Button>
               </div>
             </form>
