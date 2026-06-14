@@ -1,5 +1,5 @@
 -- Generado por Oracle SQL Developer Data Modeler 24.3.1.351.0831
---   en:        2026-05-27 20:15:17 CLT
+--   en:        2026-06-13 22:43:45 CLT
 --   sitio:      Oracle Database 21c
 --   tipo:      Oracle Database 21c
 
@@ -9,26 +9,6 @@
 
 -- predefined type, no DDL - XMLTYPE
 
-CREATE TABLE atenciones 
-    ( 
-     id                 INTEGER  NOT NULL , 
-     ficha_id           INTEGER  NOT NULL , 
-     cita_id            INTEGER , 
-     kinesiologo_id     INTEGER  NOT NULL , 
-     fecha              DATE DEFAULT CURRENT_DATE  NOT NULL , 
-     detalle_ejercicios VARCHAR2 (250)  NOT NULL , 
-     plan_ejercicios    VARCHAR2 (250)  NOT NULL , 
-     created_at         DATE DEFAULT now()  NOT NULL 
-    ) 
-    LOGGING 
-;
-
-ALTER TABLE atenciones 
-    ADD CONSTRAINT atenciones_PK PRIMARY KEY ( id ) ;
-
-ALTER TABLE atenciones 
-    ADD CONSTRAINT atenciones_cita_id_key UNIQUE ( cita_id ) ;
-
 CREATE TABLE citas 
     ( 
      id              INTEGER  NOT NULL , 
@@ -36,8 +16,8 @@ CREATE TABLE citas
      kinesiologo_id  INTEGER  NOT NULL , 
      fecha           DATE  NOT NULL , 
      hora            TIMESTAMP WITH TIME ZONE  NOT NULL , 
-     motivo_consulta VARCHAR2 (255) , 
-     estado_id       INTEGER  NOT NULL 
+     motivo_consulta VARCHAR2 (100) , 
+     estado_id       INTEGER 
     ) 
     LOGGING 
 ;
@@ -49,10 +29,10 @@ CREATE TABLE ejercicios
     ( 
      id                  INTEGER  NOT NULL , 
      kinesiologo_creador INTEGER , 
-     nombre              VARCHAR2 (255)  NOT NULL , 
-     descripcion         VARCHAR2 (255) , 
-     url_multimedia      VARCHAR2 (255) , 
-     parte_cuerpo        VARCHAR2 (255) 
+     nombre              VARCHAR2 (100)  NOT NULL , 
+     descripcion         VARCHAR2 (100) , 
+     url_multimedia      VARCHAR2 (100) , 
+     parte_cuerpo        VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -63,8 +43,8 @@ ALTER TABLE ejercicios
 CREATE TABLE especialidades 
     ( 
      id          INTEGER  NOT NULL , 
-     nombre      VARCHAR2 (255)  NOT NULL , 
-     descripcion VARCHAR2 (255) 
+     nombre      VARCHAR2 (100)  NOT NULL , 
+     descripcion VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -72,17 +52,14 @@ CREATE TABLE especialidades
 ALTER TABLE especialidades 
     ADD CONSTRAINT especialidades_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE especialidades 
-    ADD CONSTRAINT especialidades_nombre_key UNIQUE ( nombre ) ;
-
 CREATE TABLE estado_historial 
     ( 
      id           INTEGER  NOT NULL , 
-     entidad_tipo VARCHAR2 (255)  NOT NULL , 
+     entidad_tipo VARCHAR2 (100)  NOT NULL , 
      entidad_id   INTEGER  NOT NULL , 
      estado_id    INTEGER  NOT NULL , 
-     cambio_fecha DATE DEFAULT now()  NOT NULL , 
-     comentario   VARCHAR2 (255)  NOT NULL , 
+     cambio_fecha TIMESTAMP , 
+     comentario   VARCHAR2 (100) , 
      actor_id     INTEGER 
     ) 
     LOGGING 
@@ -94,9 +71,9 @@ ALTER TABLE estado_historial
 CREATE TABLE estados 
     ( 
      id          INTEGER  NOT NULL , 
-     nombre      VARCHAR2 (255)  NOT NULL , 
-     entidad     VARCHAR2 (255)  NOT NULL , 
-     descripcion VARCHAR2 (255) 
+     nombre      VARCHAR2 (100)  NOT NULL , 
+     entidad     VARCHAR2 (100)  NOT NULL , 
+     descripcion VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -104,17 +81,14 @@ CREATE TABLE estados
 ALTER TABLE estados 
     ADD CONSTRAINT estados_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE estados 
-    ADD CONSTRAINT estados_nombre_entidad_key UNIQUE ( nombre , entidad ) ;
-
 CREATE TABLE fichas 
     ( 
      id                 INTEGER  NOT NULL , 
      paciente_id        INTEGER  NOT NULL , 
-     motivo_tratamiento VARCHAR2 (255) , 
-     fecha_inicio       DATE DEFAULT CURRENT_DATE  NOT NULL , 
+     motivo_tratamiento VARCHAR2 (100) , 
+     fecha_inicio       DATE , 
      fecha_cierre       DATE , 
-     created_at         DATE DEFAULT now()  NOT NULL 
+     created_at         TIMESTAMP 
     ) 
     LOGGING 
 ;
@@ -127,9 +101,9 @@ CREATE TABLE fichas_clinicas
      id              INTEGER  NOT NULL , 
      paciente_id     INTEGER  NOT NULL , 
      kinesiologo_id  INTEGER  NOT NULL , 
-     fecha_atencion  DATE DEFAULT now()  NOT NULL , 
-     diagnostico     VARCHAR2 (255)  NOT NULL , 
-     notas_evolucion VARCHAR2 (255) 
+     fecha_atencion  TIMESTAMP , 
+     diagnostico     VARCHAR2 (100)  NOT NULL , 
+     notas_evolucion VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -141,11 +115,11 @@ CREATE TABLE kinesiologos
     ( 
      id              INTEGER  NOT NULL , 
      usuario_id      INTEGER , 
-     registro_minsal VARCHAR2 (255) , 
-     nombre          VARCHAR2 (255)  NOT NULL , 
-     apellido        VARCHAR2 (255)  NOT NULL , 
-     telefono        VARCHAR2 (255) , 
-     rut             VARCHAR2 (255) , 
+     nombre          VARCHAR2 (100)  NOT NULL , 
+     apellido        VARCHAR2 (100)  NOT NULL , 
+     rut             VARCHAR2 (100) , 
+     telefono        VARCHAR2 (100) , 
+     registro_minsal VARCHAR2 (100) , 
      especialidad_id INTEGER 
     ) 
     LOGGING 
@@ -154,25 +128,32 @@ CREATE TABLE kinesiologos
 ALTER TABLE kinesiologos 
     ADD CONSTRAINT kinesiologos_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE kinesiologos 
-    ADD CONSTRAINT kinesiologos_registro_minsal_key UNIQUE ( registro_minsal ) ;
+CREATE TABLE notas_evolucion_diaria 
+    ( 
+     id             INTEGER  NOT NULL , 
+     paciente_id    INTEGER  NOT NULL , 
+     kinesiologo_id INTEGER  NOT NULL , 
+     fecha          DATE  NOT NULL , 
+     notas          VARCHAR2 (100)  NOT NULL , 
+     created_at     TIMESTAMP , 
+     updated_at     TIMESTAMP 
+    ) 
+    LOGGING 
+;
 
-ALTER TABLE kinesiologos 
-    ADD CONSTRAINT kinesiologos_rut_key UNIQUE ( rut ) ;
-
-ALTER TABLE kinesiologos 
-    ADD CONSTRAINT kinesiologos_usuario_id_key UNIQUE ( usuario_id ) ;
+ALTER TABLE notas_evolucion_diaria 
+    ADD CONSTRAINT notas_evolucion_diaria_PK PRIMARY KEY ( id ) ;
 
 CREATE TABLE notificaciones 
     ( 
      id             INTEGER  NOT NULL , 
      kinesiologo_id INTEGER , 
      paciente_id    INTEGER , 
-     tipo           VARCHAR2 (255) DEFAULT 'registro_paciente'  NOT NULL , 
-     mensaje        VARCHAR2 (255) , 
-     leida          NUMBER  NOT NULL , 
-     confirmada     NUMBER  NOT NULL , 
-     created_at     DATE DEFAULT now()  NOT NULL 
+     tipo           VARCHAR2 (100) , 
+     mensaje        VARCHAR2 (100) , 
+     leida          NUMBER , 
+     confirmada     NUMBER , 
+     created_at     TIMESTAMP 
     ) 
     LOGGING 
 ;
@@ -184,29 +165,21 @@ CREATE TABLE pacientes
     ( 
      id                      INTEGER  NOT NULL , 
      usuario_id              INTEGER , 
-     rut                     VARCHAR2 (255)  NOT NULL , 
-     nombre                  VARCHAR2 (255) , 
+     nombre                  VARCHAR2 (100) , 
+     apellido                VARCHAR2 (100) , 
+     rut                     VARCHAR2 (100) , 
      fecha_nacimiento        DATE , 
-     telefono                VARCHAR2 (255) , 
-     apellido                VARCHAR2 (255) , 
-     email                   VARCHAR2 (255) , 
+     telefono                VARCHAR2 (100) , 
+     email                   VARCHAR2 (100) , 
+     prevision_id            INTEGER , 
      kinesiologo_asignado_id INTEGER , 
-     prevision_id            INTEGER 
+     activo                  NUMBER 
     ) 
     LOGGING 
 ;
 
 ALTER TABLE pacientes 
     ADD CONSTRAINT pacientes_PK PRIMARY KEY ( id ) ;
-
-ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_email_key UNIQUE ( email ) ;
-
-ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_rut_key UNIQUE ( rut ) ;
-
-ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_usuario_id_key UNIQUE ( usuario_id ) ;
 
 CREATE TABLE plan_detalle 
     ( 
@@ -215,27 +188,11 @@ CREATE TABLE plan_detalle
      ejercicio_id      INTEGER  NOT NULL , 
      series            INTEGER  NOT NULL , 
      repeticiones      INTEGER  NOT NULL , 
-     frecuencia_diaria INTEGER DEFAULT 1  NOT NULL 
+     frecuencia_diaria INTEGER  NOT NULL 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE plan_detalle 
-    ADD CONSTRAINT plan_detalle_frecuencia_diaria_check 
-    CHECK (frecuencia_diaria > 0)
-;
-
-
-ALTER TABLE plan_detalle 
-    ADD CONSTRAINT plan_detalle_repeticiones_check 
-    CHECK (repeticiones > 0)
-;
-
-
-ALTER TABLE plan_detalle 
-    ADD CONSTRAINT plan_detalle_series_check 
-    CHECK (series > 0)
-;
 ALTER TABLE plan_detalle 
     ADD CONSTRAINT plan_detalle_PK PRIMARY KEY ( id ) ;
 
@@ -244,9 +201,9 @@ CREATE TABLE planes_tratamiento
      id                   INTEGER  NOT NULL , 
      paciente_id          INTEGER  NOT NULL , 
      kinesiologo_id       INTEGER  NOT NULL , 
-     fecha_inicio         DATE DEFAULT CURRENT_DATE  NOT NULL , 
+     fecha_inicio         DATE , 
      fecha_fin            DATE , 
-     objetivo_terapeutico VARCHAR2 (255) 
+     objetivo_terapeutico VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -257,8 +214,8 @@ ALTER TABLE planes_tratamiento
 CREATE TABLE previsiones 
     ( 
      id          INTEGER  NOT NULL , 
-     nombre      VARCHAR2 (255)  NOT NULL , 
-     descripcion VARCHAR2 (255) 
+     nombre      VARCHAR2 (100)  NOT NULL , 
+     descripcion VARCHAR2 (100) 
     ) 
     LOGGING 
 ;
@@ -266,33 +223,26 @@ CREATE TABLE previsiones
 ALTER TABLE previsiones 
     ADD CONSTRAINT previsiones_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE previsiones 
-    ADD CONSTRAINT previsiones_nombre_key UNIQUE ( nombre ) ;
-
 CREATE TABLE seguimiento_progreso 
     ( 
      id              INTEGER  NOT NULL , 
      plan_detalle_id INTEGER  NOT NULL , 
-     fecha_registro  DATE DEFAULT now()  NOT NULL , 
-     completado      NUMBER  NOT NULL , 
-     nivel_dolor     INTEGER  NOT NULL 
+     fecha_registro  TIMESTAMP , 
+     completado      NUMBER , 
+     nivel_dolor     INTEGER 
     ) 
     LOGGING 
 ;
 
-ALTER TABLE seguimiento_progreso 
-    ADD CONSTRAINT seguimiento_progreso_nivel_dolor_check 
-    CHECK (nivel_dolor >= 1 AND nivel_dolor <= 10)
-;
 ALTER TABLE seguimiento_progreso 
     ADD CONSTRAINT seguimiento_progreso_PK PRIMARY KEY ( id ) ;
 
 CREATE TABLE usuarios 
     ( 
      id         INTEGER  NOT NULL , 
-     email      VARCHAR2 (255)  NOT NULL , 
-     rol        VARCHAR2 (255) DEFAULT 'paciente'  NOT NULL , 
-     created_at DATE DEFAULT now()  NOT NULL 
+     email      VARCHAR2 (100)  NOT NULL , 
+     rol        VARCHAR2 (100)  NOT NULL , 
+     created_at TIMESTAMP 
     ) 
     LOGGING 
 ;
@@ -300,49 +250,8 @@ CREATE TABLE usuarios
 ALTER TABLE usuarios 
     ADD CONSTRAINT usuarios_PK PRIMARY KEY ( id ) ;
 
-ALTER TABLE usuarios 
-    ADD CONSTRAINT usuarios_email_key UNIQUE ( email ) ;
-
-ALTER TABLE atenciones 
-    ADD CONSTRAINT atenciones_cita_id_fkey FOREIGN KEY 
-    ( 
-     cita_id
-    ) 
-    REFERENCES citas 
-    ( 
-     id
-    ) 
-    ON DELETE SET NULL 
-    NOT DEFERRABLE 
-;
-
-ALTER TABLE atenciones 
-    ADD CONSTRAINT atenciones_ficha_id_fkey FOREIGN KEY 
-    ( 
-     ficha_id
-    ) 
-    REFERENCES fichas 
-    ( 
-     id
-    ) 
-    ON DELETE CASCADE 
-    NOT DEFERRABLE 
-;
-
-ALTER TABLE atenciones 
-    ADD CONSTRAINT atenciones_kinesiologo_id_fkey FOREIGN KEY 
-    ( 
-     kinesiologo_id
-    ) 
-    REFERENCES kinesiologos 
-    ( 
-     id
-    ) 
-    NOT DEFERRABLE 
-;
-
 ALTER TABLE citas 
-    ADD CONSTRAINT citas_estado_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_citas_estado FOREIGN KEY 
     ( 
      estado_id
     ) 
@@ -354,7 +263,7 @@ ALTER TABLE citas
 ;
 
 ALTER TABLE citas 
-    ADD CONSTRAINT citas_kinesiologo_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_citas_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
@@ -362,12 +271,11 @@ ALTER TABLE citas
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE citas 
-    ADD CONSTRAINT citas_paciente_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_citas_paciente FOREIGN KEY 
     ( 
      paciente_id
     ) 
@@ -375,12 +283,11 @@ ALTER TABLE citas
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE ejercicios 
-    ADD CONSTRAINT ejercicios_kinesiologo_creador_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_ejercicios_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_creador
     ) 
@@ -388,12 +295,11 @@ ALTER TABLE ejercicios
     ( 
      id
     ) 
-    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE estado_historial 
-    ADD CONSTRAINT estado_historial_actor_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_estado_historial_actor FOREIGN KEY 
     ( 
      actor_id
     ) 
@@ -401,12 +307,11 @@ ALTER TABLE estado_historial
     ( 
      id
     ) 
-    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE estado_historial 
-    ADD CONSTRAINT estado_historial_estado_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_estado_historial_estado FOREIGN KEY 
     ( 
      estado_id
     ) 
@@ -414,12 +319,11 @@ ALTER TABLE estado_historial
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE fichas_clinicas 
-    ADD CONSTRAINT fichas_clinicas_kinesiologo_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_fichas_clinicas_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
@@ -427,12 +331,11 @@ ALTER TABLE fichas_clinicas
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE fichas_clinicas 
-    ADD CONSTRAINT fichas_clinicas_paciente_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_fichas_clinicas_paciente FOREIGN KEY 
     ( 
      paciente_id
     ) 
@@ -440,12 +343,11 @@ ALTER TABLE fichas_clinicas
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE fichas 
-    ADD CONSTRAINT fichas_paciente_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_fichas_paciente FOREIGN KEY 
     ( 
      paciente_id
     ) 
@@ -453,12 +355,11 @@ ALTER TABLE fichas
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE kinesiologos 
-    ADD CONSTRAINT kinesiologos_especialidad_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_kinesiologos_especialidad FOREIGN KEY 
     ( 
      especialidad_id
     ) 
@@ -466,12 +367,11 @@ ALTER TABLE kinesiologos
     ( 
      id
     ) 
-    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE kinesiologos 
-    ADD CONSTRAINT kinesiologos_usuario_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_kinesiologos_usuario FOREIGN KEY 
     ( 
      usuario_id
     ) 
@@ -479,12 +379,11 @@ ALTER TABLE kinesiologos
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE notificaciones 
-    ADD CONSTRAINT notificaciones_kinesiologo_id_fkey FOREIGN KEY 
+ALTER TABLE notas_evolucion_diaria 
+    ADD CONSTRAINT fk_notas_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
@@ -492,12 +391,11 @@ ALTER TABLE notificaciones
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
-ALTER TABLE notificaciones 
-    ADD CONSTRAINT notificaciones_paciente_id_fkey FOREIGN KEY 
+ALTER TABLE notas_evolucion_diaria 
+    ADD CONSTRAINT fk_notas_paciente FOREIGN KEY 
     ( 
      paciente_id
     ) 
@@ -505,12 +403,35 @@ ALTER TABLE notificaciones
     ( 
      id
     ) 
-    ON DELETE CASCADE 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE notificaciones 
+    ADD CONSTRAINT fk_notificaciones_kinesiologo FOREIGN KEY 
+    ( 
+     kinesiologo_id
+    ) 
+    REFERENCES kinesiologos 
+    ( 
+     id
+    ) 
+    NOT DEFERRABLE 
+;
+
+ALTER TABLE notificaciones 
+    ADD CONSTRAINT fk_notificaciones_paciente FOREIGN KEY 
+    ( 
+     paciente_id
+    ) 
+    REFERENCES pacientes 
+    ( 
+     id
+    ) 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_kinesiologo_asignado_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_pacientes_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_asignado_id
     ) 
@@ -518,12 +439,11 @@ ALTER TABLE pacientes
     ( 
      id
     ) 
-    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_prevision_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_pacientes_prevision FOREIGN KEY 
     ( 
      prevision_id
     ) 
@@ -531,12 +451,11 @@ ALTER TABLE pacientes
     ( 
      id
     ) 
-    ON DELETE SET NULL 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE pacientes 
-    ADD CONSTRAINT pacientes_usuario_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_pacientes_usuario FOREIGN KEY 
     ( 
      usuario_id
     ) 
@@ -544,12 +463,11 @@ ALTER TABLE pacientes
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE plan_detalle 
-    ADD CONSTRAINT plan_detalle_ejercicio_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_plan_detalle_ejercicio FOREIGN KEY 
     ( 
      ejercicio_id
     ) 
@@ -557,12 +475,11 @@ ALTER TABLE plan_detalle
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE plan_detalle 
-    ADD CONSTRAINT plan_detalle_plan_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_plan_detalle_plan FOREIGN KEY 
     ( 
      plan_id
     ) 
@@ -570,12 +487,11 @@ ALTER TABLE plan_detalle
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE planes_tratamiento 
-    ADD CONSTRAINT planes_tratamiento_kinesiologo_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_planes_kinesiologo FOREIGN KEY 
     ( 
      kinesiologo_id
     ) 
@@ -583,12 +499,11 @@ ALTER TABLE planes_tratamiento
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE planes_tratamiento 
-    ADD CONSTRAINT planes_tratamiento_paciente_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_planes_paciente FOREIGN KEY 
     ( 
      paciente_id
     ) 
@@ -596,12 +511,11 @@ ALTER TABLE planes_tratamiento
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
 ALTER TABLE seguimiento_progreso 
-    ADD CONSTRAINT seguimiento_progreso_plan_detalle_id_fkey FOREIGN KEY 
+    ADD CONSTRAINT fk_seguimiento_plan_detalle FOREIGN KEY 
     ( 
      plan_detalle_id
     ) 
@@ -609,7 +523,6 @@ ALTER TABLE seguimiento_progreso
     ( 
      id
     ) 
-    ON DELETE CASCADE 
     NOT DEFERRABLE 
 ;
 
@@ -619,7 +532,7 @@ ALTER TABLE seguimiento_progreso
 -- 
 -- CREATE TABLE                            16
 -- CREATE INDEX                             0
--- ALTER TABLE                             55
+-- ALTER TABLE                             39
 -- CREATE VIEW                              0
 -- ALTER VIEW                               0
 -- CREATE PACKAGE                           0
