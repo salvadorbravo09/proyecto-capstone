@@ -85,6 +85,7 @@ function getStatusLabel(estado) {
 export default function Agenda() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [userRole, setUserRole] = useState(null);
@@ -96,6 +97,9 @@ export default function Agenda() {
   const [patients, setPatients] = useState([]);
   const [citas, setCitas] = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [showFiltros, setShowFiltros] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroPaciente, setFiltroPaciente] = useState("");
   const [formData, setFormData] = useState({
     paciente_id: "",
     fecha: "",
@@ -148,9 +152,21 @@ export default function Agenda() {
   const filteredCitas = useMemo(() => {
     return citas.filter((cita) => {
       const citaDate = parseISO(cita.fecha);
-      return !isBefore(citaDate, weekStart) && !isAfter(citaDate, weekEnd);
+      if (isBefore(citaDate, weekStart) || isAfter(citaDate, weekEnd))
+        return false;
+
+      if (filtroEstado && cita.estados?.nombre !== filtroEstado) return false;
+
+      if (filtroPaciente) {
+        const q = filtroPaciente.toLowerCase().trim();
+        const name =
+          `${cita.paciente?.nombre || ""} ${cita.paciente?.apellido || ""}`.toLowerCase();
+        if (!name.includes(q)) return false;
+      }
+
+      return true;
     });
-  }, [citas, weekStart, weekEnd]);
+  }, [citas, weekStart, weekEnd, filtroEstado, filtroPaciente]);
 
   const citaMap = useMemo(() => {
     const map = new Map();
@@ -173,6 +189,8 @@ export default function Agenda() {
       patients.find((patient) => patient.id === formData.paciente_id) || null
     );
   }, [patients, formData.paciente_id]);
+
+  const activeFilterCount = [filtroEstado, filtroPaciente].filter(Boolean).length;
 
   async function initialize() {
     try {
@@ -310,6 +328,12 @@ export default function Agenda() {
     setErrorMessage("");
 
     try {
+      const now = new Date();
+      const fechaCita = new Date(`${formData.fecha}T${formData.hora}`);
+      if (fechaCita <= now) {
+        throw new Error("La fecha y hora de la cita deben ser futuras.");
+      }
+
       let targetKinesiologoId = kinesiologoId;
 
       if (userRole === "admin") {
@@ -386,25 +410,89 @@ export default function Agenda() {
     }
   }
 
+  async function handleChangeEstado(citaId, nuevoEstado) {
+    setCambiandoEstado(citaId);
+    setErrorMessage("");
+    try {
+      const { data: estadoData } = await supabase
+        .from("estados")
+        .select("id")
+        .eq("entidad", "citas")
+        .eq("nombre", nuevoEstado)
+        .maybeSingle();
+
+      if (!estadoData) throw new Error(`Estado '${nuevoEstado}' no encontrado`);
+
+      const { error } = await supabase
+        .from("citas")
+        .update({ estado_id: estadoData.id })
+        .eq("id", citaId);
+
+      if (error) throw error;
+
+      await supabase.from("estado_historial").insert({
+        entidad_tipo: "citas",
+        entidad_id: citaId,
+        estado_id: estadoData.id,
+        comentario: `Cita marcada como '${nuevoEstado}' desde agenda`,
+      });
+
+      const reloadKinId =
+        userRole === "admin" ? adminSelectedKinesiologoId : kinesiologoId;
+      await loadCitas(reloadKinId, userRole);
+    } catch (error) {
+      console.error("Error cambiando estado:", error);
+      setErrorMessage(error.message || "No se pudo cambiar el estado.");
+    } finally {
+      setCambiandoEstado(null);
+    }
+  }
+
   function renderAppointmentsForCell(dateKey, time) {
     const items = citaMap.get(getCellKey(dateKey, time)) || [];
 
-    return items.map((cita) => (
-      <div
-        key={cita.id}
-        className={`rounded-xl border px-3 py-2 text-xs shadow-sm ${getStateClasses(cita.estados?.nombre || "agendada")}`}
-      >
-        <p className="font-semibold leading-tight text-slate-900">
-          {getDisplayName(cita.paciente)}
-        </p>
-        <p className="mt-1 text-[11px] text-slate-600">
-          {formatTimeKey(cita.hora)} · {cita.motivo_consulta || "Sin motivo"}
-        </p>
-        <p className="mt-1 text-[11px] font-medium">
-          {getStatusLabel(cita.estados?.nombre || "agendada")}
-        </p>
-      </div>
-    ));
+    return items.map((cita) => {
+      const estadoNombre = cita.estados?.nombre || "agendada";
+
+      return (
+        <div
+          key={cita.id}
+          className={`rounded-xl border px-3 py-2 text-xs shadow-sm ${getStateClasses(estadoNombre)}`}
+        >
+          <p className="font-semibold leading-tight text-slate-900">
+            {getDisplayName(cita.paciente)}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-600">
+            {formatTimeKey(cita.hora)} · {cita.motivo_consulta || "Sin motivo"}
+          </p>
+          <div className="mt-1.5 flex items-center justify-between gap-1">
+            <span className="text-[11px] font-medium">
+              {getStatusLabel(estadoNombre)}
+            </span>
+            {estadoNombre === "agendada" && (
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleChangeEstado(cita.id, "asistida")}
+                  disabled={cambiandoEstado === cita.id}
+                  className="flex size-5 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-50 transition-colors"
+                  title="Marcar como asistida"
+                >
+                  <span className="text-[11px]">✔</span>
+                </button>
+                <button
+                  onClick={() => handleChangeEstado(cita.id, "cancelada")}
+                  disabled={cambiandoEstado === cita.id}
+                  className="flex size-5 items-center justify-center rounded-md bg-rose-100 text-rose-700 hover:bg-rose-200 disabled:opacity-50 transition-colors"
+                  title="Cancelar cita"
+                >
+                  <span className="text-[11px]">✕</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    });
   }
 
   if (loading) {
@@ -452,10 +540,16 @@ export default function Agenda() {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              className="gap-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              className={`gap-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ${activeFilterCount > 0 ? "border-[#2B6CB0] text-[#2B6CB0]" : ""}`}
+              onClick={() => setShowFiltros(!showFiltros)}
             >
               <Filter className="size-4" />
               Filtros
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-[#2B6CB0] px-1.5 text-[10px] font-semibold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
             </Button>
             <Button
               className="gap-2 bg-[#2B6CB0] hover:bg-[#2C5282]"
@@ -473,6 +567,67 @@ export default function Agenda() {
           {errorMessage}
         </div>
       ) : null}
+
+      {showFiltros && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-end gap-6">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                Estado
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {["", "agendada", "asistida", "cancelada"].map((est) => (
+                  <button
+                    key={est}
+                    onClick={() =>
+                      setFiltroEstado(est === filtroEstado ? "" : est)
+                    }
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      filtroEstado === est
+                        ? est === "agendada"
+                          ? "bg-sky-100 text-sky-700"
+                          : est === "asistida"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : est === "cancelada"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {est === ""
+                      ? "Todas"
+                      : est.charAt(0).toUpperCase() + est.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                Paciente
+              </label>
+              <Input
+                placeholder="Buscar por nombre..."
+                value={filtroPaciente}
+                onChange={(e) => setFiltroPaciente(e.target.value)}
+                className="w-48"
+              />
+            </div>
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-slate-500"
+                onClick={() => {
+                  setFiltroEstado("");
+                  setFiltroPaciente("");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -506,6 +661,20 @@ export default function Agenda() {
               <h2 className="text-lg font-semibold text-slate-900">
                 Calendario semanal
               </h2>
+              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-sky-200" />
+                  Agendada
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-emerald-200" />
+                  Asistida
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-rose-200" />
+                  Cancelada
+                </span>
+              </div>
               <p className="text-sm text-slate-500">
                 Solo muestra tus pacientes y tus citas
               </p>
@@ -656,6 +825,7 @@ export default function Agenda() {
               <Input
                 type="date"
                 value={formData.fecha}
+                min={format(new Date(), "yyyy-MM-dd")}
                 onChange={(event) =>
                   setFormData({ ...formData, fecha: event.target.value })
                 }
@@ -667,6 +837,11 @@ export default function Agenda() {
               <Input
                 type="time"
                 value={formData.hora}
+                min={
+                  formData.fecha === format(new Date(), "yyyy-MM-dd")
+                    ? format(new Date(), "HH:mm")
+                    : undefined
+                }
                 onChange={(event) =>
                   setFormData({ ...formData, hora: event.target.value })
                 }

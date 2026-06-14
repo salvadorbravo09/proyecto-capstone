@@ -233,6 +233,9 @@ export default function AdminDashboard() {
     [stats.citasSemana],
   );
 
+  const hoyStr = format(new Date(), "yyyy-MM-dd");
+  const totalSemanal = stats.citasSemana.reduce((s, d) => s + d.citas, 0);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 p-8">
@@ -327,42 +330,58 @@ export default function AdminDashboard() {
         <Card className="overflow-hidden">
           <CardContent className="p-6">
             <div className="mb-6 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Actividad semanal
-                </p>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  Citas por día
-                </h2>
-              </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                Semana actual
+              <h2 className="text-lg font-semibold text-slate-900">
+                Citas por día
+              </h2>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-500">
+                  <span className="font-semibold text-slate-700">{totalSemanal}</span> citas esta semana
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  Semana actual
+                </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-7 gap-2">
               {stats.citasSemana.map((day) => {
-                const height = `${Math.max((day.citas / maxActivity) * 100, day.citas > 0 ? 18 : 8)}%`;
+                const esHoy = day.fecha === hoyStr;
+                const esFinde = day.dia === "sáb" || day.dia === "dom";
+                const height = `${Math.max((day.citas / maxActivity) * 100, day.citas > 0 ? 20 : 6)}%`;
 
                 return (
-                  <div
-                    key={day.fecha}
-                    className="flex flex-col items-center gap-3"
-                  >
-                    <div className="flex h-44 w-full items-end rounded-2xl bg-slate-50 p-2">
+                  <div key={day.fecha} className="flex flex-col items-center gap-2">
+                    <div className="relative flex h-28 w-full items-end">
                       <div
-                        className="w-full rounded-xl bg-linear-to-t from-[#2B6CB0] to-cyan-400 transition-all"
+                        className={`w-full rounded-lg transition-all ${
+                          esHoy
+                            ? "bg-[#2B6CB0]"
+                            : esFinde
+                              ? "bg-slate-200"
+                              : "bg-slate-300"
+                        }`}
                         style={{ height }}
                       />
                     </div>
                     <div className="text-center">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                      <p className={`text-xs font-medium ${
+                        esHoy
+                          ? "text-[#2B6CB0]"
+                          : esFinde
+                            ? "text-slate-300"
+                            : "text-slate-500"
+                      }`}>
                         {day.dia}
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-900">
                         {day.citas}
                       </p>
                     </div>
+                    {esHoy && (
+                      <span className="text-[10px] font-medium text-[#2B6CB0]">
+                        Hoy
+                      </span>
+                    )}
                   </div>
                 );
               })}

@@ -143,9 +143,11 @@ Deno.serve(async (req) => {
     insertPayload.kinesiologo_asignado_id = kinesiologoId;
   }
 
-  const { error: insertError } = await supabaseAdmin
+  const { data: pacienteData, error: insertError } = await supabaseAdmin
     .from("pacientes")
-    .insert([insertPayload]);
+    .insert([insertPayload])
+    .select("id")
+    .single();
 
   if (insertError) {
     await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
@@ -155,12 +157,12 @@ Deno.serve(async (req) => {
   }
 
   // Crear notificación para el kinesiólogo
-  if (roleData.rol === "kinesiologo" && kinesiologoId) {
+  if (roleData.rol === "kinesiologo" && kinesiologoId && pacienteData) {
     await supabaseAdmin
       .from("notificaciones")
       .insert([{
         kinesiologo_id: kinesiologoId,
-        paciente_id: authData.user.id, // Usamos el usuario_id como referencia
+        paciente_id: pacienteData.id,
         tipo: "registro_paciente",
         mensaje: `Nuevo paciente registrado: ${nombre} ${apellido}`,
       }]);
