@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Modal } from "../components/ui/modal";
 import PrescripcionModal from "../components/PrescripcionModal";
+import { generarPdfFicha } from "../services/generarPdfFicha";
 import { supabase } from "@/lib/supabase";
 import { format, parseISO, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
@@ -51,6 +52,7 @@ export default function PacienteFicha() {
   const [savingNotaDiaria, setSavingNotaDiaria] = useState(false);
   const [notaDiariaFecha, setNotaDiariaFecha] = useState("");
   const [notaDiariaTexto, setNotaDiariaTexto] = useState("");
+  const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -379,6 +381,18 @@ export default function PacienteFicha() {
     return { data: weeks, ultimaSemana };
   }
 
+  async function handleExportPdf() {
+    setExportando(true);
+    try {
+      await generarPdfFicha(id);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      alert("Error al generar PDF: " + (err?.message || err));
+    } finally {
+      setExportando(false);
+    }
+  }
+
   async function handleSaveRutina(nuevaRutina) {
     if (!kinesiologoId) {
       console.error("No kinesiologo ID found");
@@ -667,6 +681,19 @@ export default function PacienteFicha() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              disabled={exportando}
+              onClick={handleExportPdf}
+              className="bg-[#2B6CB0] hover:bg-[#2C5282] disabled:opacity-50"
+            >
+              {exportando ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FileText className="size-4" />
+              )}
+              {exportando ? "Generando..." : "Ficha PDF"}
+            </Button>
             {paciente.activo ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200">
                 <Activity className="size-3.5" />
