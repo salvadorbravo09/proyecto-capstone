@@ -95,23 +95,30 @@ export default function AdminEjercicios() {
     return publicUrl.substring(idx + prefix.length);
   }
 
-  async function uploadVideo(ejercicioId) {
-    if (!videoFile) return null;
+  async function uploadVideo(ejercicioId, file, oldUrl) {
+    if (!file) return null;
 
-    const ext = videoFile.name.split(".").pop();
-    const filePath = `${ejercicioId}/video.${ext}`;
+    const ext = file.name.split(".").pop();
+    const filePath = `${ejercicioId}/video_${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(filePath, videoFile, { upsert: true });
+      .upload(filePath, file, { upsert: true });
 
     if (error) throw error;
+
+    if (oldUrl) {
+      const oldPath = extractStoragePath(oldUrl);
+      if (oldPath) {
+        await supabase.storage.from(BUCKET).remove([oldPath]);
+      }
+    }
 
     const { data: { publicUrl } } = supabase.storage
       .from(BUCKET)
       .getPublicUrl(filePath);
 
-    return publicUrl;
+    return { publicUrl };
   }
 
   async function handleSubmit(e) {
@@ -147,14 +154,10 @@ export default function AdminEjercicios() {
       const wantsRemove = !videoFile && !videoPreview;
 
       if (hasNewVideo) {
-        if (hadVideo) {
-          const oldPath = extractStoragePath(editando.url_multimedia);
-          if (oldPath) {
-            await supabase.storage.from(BUCKET).remove([oldPath]);
-          }
+        const result = await uploadVideo(ejercicioId, videoFile, hadVideo ? editando.url_multimedia : null);
+        if (result) {
+          await supabase.from("ejercicios").update({ url_multimedia: result.publicUrl }).eq("id", ejercicioId);
         }
-        const publicUrl = await uploadVideo(ejercicioId);
-        await supabase.from("ejercicios").update({ url_multimedia: publicUrl }).eq("id", ejercicioId);
       } else if (editando && wantsRemove && hadVideo) {
         const oldPath = extractStoragePath(editando.url_multimedia);
         if (oldPath) {

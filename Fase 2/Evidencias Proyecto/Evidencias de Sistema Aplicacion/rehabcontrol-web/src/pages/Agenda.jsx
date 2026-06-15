@@ -344,6 +344,19 @@ export default function Agenda() {
         }
       }
 
+      const { data: conflicto } = await supabase
+        .from("citas")
+        .select("id, estados!inner(nombre)")
+        .eq("kinesiologo_id", targetKinesiologoId)
+        .eq("fecha", formData.fecha)
+        .eq("hora", formData.hora)
+        .neq("estados.nombre", "cancelada")
+        .limit(1);
+
+      if (conflicto && conflicto.length > 0) {
+        throw new Error("El kinesiólogo ya tiene una cita agendada en esa fecha y hora.");
+      }
+
       const { data: estadoData } = await supabase
         .from("estados")
         .select("id")

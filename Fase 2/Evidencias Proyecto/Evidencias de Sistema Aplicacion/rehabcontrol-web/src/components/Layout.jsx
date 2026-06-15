@@ -107,24 +107,24 @@ export default function Layout() {
       to: "/", 
       label: "Dashboard", 
       icon: Home, 
-      color: "text-blue-500",
-      bgHover: "hover:bg-blue-50",
+      color: "text-blue-400",
+      bgHover: "hover:bg-blue-500/10",
       bgActive: "bg-blue-600"
     },
     { 
       to: "/agenda", 
       label: "Agenda", 
       icon: Calendar, 
-      color: "text-emerald-500",
-      bgHover: "hover:bg-emerald-50",
+      color: "text-emerald-400",
+      bgHover: "hover:bg-emerald-500/10",
       bgActive: "bg-emerald-600"
     },
     { 
       to: "/pacientes", 
       label: "Pacientes", 
       icon: Users, 
-      color: "text-purple-500",
-      bgHover: "hover:bg-purple-50",
+      color: "text-purple-400",
+      bgHover: "hover:bg-purple-500/10",
       bgActive: "bg-purple-600"
     },
   ];
@@ -180,7 +180,7 @@ export default function Layout() {
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                     isActive
                       ? `${item.bgActive} text-white shadow-lg shadow-blue-900/20`
-                      : `text-slate-300 ${item.bgHover} hover:${item.color}`
+                      : `text-slate-300 ${item.bgHover}`
                   }`}
                 >
                   <Icon className={`size-5 ${isActive ? "text-white" : item.color}`} />

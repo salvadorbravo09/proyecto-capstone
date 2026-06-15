@@ -12,12 +12,17 @@ import {
   AlertCircle,
   Clock,
   Loader2,
+  Bell,
+  AlertTriangle,
+  Ban,
+  FileX,
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -35,6 +40,7 @@ export default function Dashboard() {
   const [pacientesActivos, setPacientesActivos] = useState(0);
   const [inasistencias, setInasistencias] = useState(0);
   const [ocupacionData, setOcupacionData] = useState([]);
+  const [alertas, setAlertas] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [kinesiologoId, setKinesiologoId] = useState(null);
 
@@ -114,16 +120,20 @@ export default function Dashboard() {
         horas.forEach((h) => (ocupacionMap[h] = 0));
 
         hoy.forEach((cita) => {
-          const horaKey = cita.hora.substring(0, 5);
+          const horaKey = `${String(cita.hora).split(":")[0]}:00`;
           if (horaKey in ocupacionMap) {
             ocupacionMap[horaKey]++;
           }
         });
 
-        const ocupacion = horas.map((hora) => ({
-          hora,
-          ocupacion: ocupacionMap[hora],
-        }));
+        const ocupacion = horas.map((hora) => {
+          const count = ocupacionMap[hora];
+          return {
+            hora,
+            ocupacion: count,
+            fill: count >= 3 ? "#EF4444" : count === 2 ? "#F59E0B" : "#22C55E",
+          };
+        });
         setOcupacionData(ocupacion);
 
         const inasistenciasCount = citasData.filter(
@@ -142,6 +152,122 @@ export default function Dashboard() {
 
       const { count: pacientesCount } = await pacientesQuery;
       setPacientesActivos(pacientesCount || 0);
+
+      // Alertas de pacientes (solo kinesiólogo)
+      if (role === "kinesiologo" && kinId) {
+        const { data: pacs } = await supabase
+          .from("pacientes")
+          .select("id, nombre, apellido")
+          .eq("kinesiologo_asignado_id", kinId);
+
+        const alertasList = [];
+
+        if (pacs && pacs.length > 0) {
+          const { data: planes } = await supabase
+            .from("planes_tratamiento")
+            .select("id, paciente_id")
+            .in("paciente_id", pacs.map(p => p.id))
+            .is("fecha_fin", null);
+
+          const pacientesConPlan = new Set((planes || []).map(p => p.paciente_id));
+
+          if (planes && planes.length > 0) {
+            const { data: detalles } = await supabase
+              .from("plan_detalle")
+              .select("id, plan_id")
+              .in("plan_id", planes.map(p => p.id));
+
+            const pacientesConEjercicios = new Set();
+            if (detalles && detalles.length > 0) {
+              const planesConDetalles = new Set(detalles.map(d => d.plan_id));
+              for (const plan of planes) {
+                if (planesConDetalles.has(plan.id)) {
+                  pacientesConEjercicios.add(plan.paciente_id);
+                }
+              }
+
+              const tresDiasAtras = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
+              const { data: progresos } = await supabase
+                .from("seguimiento_progreso")
+                .select("plan_detalle_id, nivel_dolor, fecha_registro, completado")
+                .in("plan_detalle_id", detalles.map(d => d.id))
+                .gte("fecha_registro", tresDiasAtras);
+
+              const detalleToPlan = {};
+              detalles.forEach(d => { detalleToPlan[d.id] = d.plan_id; });
+              const planToPaciente = {};
+              planes.forEach(p => { planToPaciente[p.id] = p.paciente_id; });
+
+              const pacienteProgresos = {};
+              for (const prog of progresos || []) {
+                const planId = detalleToPlan[prog.plan_detalle_id];
+                const pacId = planToPaciente[planId];
+                if (!pacId) continue;
+                if (!pacienteProgresos[pacId]) pacienteProgresos[pacId] = [];
+                pacienteProgresos[pacId].push(prog);
+              }
+
+              const ahora = new Date();
+              const dosDiasMs = 2 * 24 * 60 * 60 * 1000;
+              const tresDiasMs = 3 * 24 * 60 * 60 * 1000;
+
+              for (const pac of pacs) {
+                if (!pacientesConEjercicios.has(pac.id)) continue;
+
+                const progs = pacienteProgresos[pac.id] || [];
+
+                const highPain = progs.some(p =>
+                  ahora.getTime() - new Date(p.fecha_registro).getTime() <= dosDiasMs
+                  && p.nivel_dolor >= 7
+                );
+
+                const hasRecent = progs.some(p =>
+                  ahora.getTime() - new Date(p.fecha_registro).getTime() <= tresDiasMs
+                );
+
+                if (highPain) {
+                  alertasList.push({
+                    tipo: "dolor_alto",
+                    paciente: pac,
+                    mensaje: "Dolor alto (≥7) en los últimos 2 días",
+                  });
+                } else if (!hasRecent) {
+                  alertasList.push({
+                    tipo: "sin_registro",
+                    paciente: pac,
+                    mensaje: "Sin actividad en los últimos 3 días",
+                  });
+                }
+              }
+
+              // Pacientes con plan activo pero sin ejercicios asignados
+              for (const pac of pacs) {
+                if (pacientesConPlan.has(pac.id) && !pacientesConEjercicios.has(pac.id)) {
+                  alertasList.push({
+                    tipo: "sin_ejercicios",
+                    paciente: pac,
+                    mensaje: "Plan activo sin ejercicios asignados",
+                  });
+                }
+              }
+            }
+          }
+
+          // Pacientes sin plan de tratamiento activo
+          for (const pac of pacs) {
+            if (!pacientesConPlan.has(pac.id)) {
+              alertasList.push({
+                tipo: "sin_plan",
+                paciente: pac,
+                mensaje: "No tiene un plan de tratamiento activo",
+              });
+            }
+          }
+        }
+
+        setAlertas(alertasList);
+      }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -339,28 +465,99 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ocupación de boxes por hora</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={ocupacionData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="hora" stroke="#64748B" />
-              <YAxis stroke="#64748B" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#ffffff",
-                  border: "1px solid #CBD5E0",
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="ocupacion" fill="#2B6CB0" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="size-5 text-[#2B6CB0]" />
+              Carga horaria — Hoy
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={ocupacionData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                <XAxis dataKey="hora" stroke="#64748B" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#64748B" allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #CBD5E0",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value) => [`${value} cita${value !== 1 ? "s" : ""}`, "Agendadas"]}
+                />
+                <Bar dataKey="ocupacion" radius={[6, 6, 0, 0]}>
+                  {ocupacionData.map((entry, idx) => (
+                    <Cell key={idx} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex items-center justify-center gap-4 mt-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><span className="size-2.5 rounded-full bg-green-500" /> Baja (≤1)</span>
+              <span className="flex items-center gap-1"><span className="size-2.5 rounded-full bg-amber-500" /> Media (=2)</span>
+              <span className="flex items-center gap-1"><span className="size-2.5 rounded-full bg-red-500" /> Alta (≥3)</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="size-5 text-[#2B6CB0]" />
+              Alertas de pacientes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {alertas.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                <TrendingUp className="size-10 mb-2 opacity-50" />
+                <p className="text-sm font-medium text-slate-500">Todos los pacientes al día</p>
+                <p className="text-xs text-slate-400 mt-1">No hay alertas que revisar.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {alertas.map((a, idx) => {
+                  const colorMap = {
+                    dolor_alto: { border: "border-red-200 bg-red-50", icon: "bg-red-100 text-red-600", Icon: AlertCircle },
+                    sin_registro: { border: "border-amber-200 bg-amber-50", icon: "bg-amber-100 text-amber-600", Icon: AlertTriangle },
+                    sin_ejercicios: { border: "border-sky-200 bg-sky-50", icon: "bg-sky-100 text-sky-600", Icon: Ban },
+                    sin_plan: { border: "border-slate-200 bg-slate-50", icon: "bg-slate-100 text-slate-500", Icon: FileX },
+                  };
+                  const c = colorMap[a.tipo] || colorMap.sin_registro;
+                  const Icon = c.Icon;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-start gap-3 rounded-xl border p-3 ${c.border}`}
+                    >
+                      <div className={`mt-0.5 size-8 rounded-full flex items-center justify-center ${c.icon}`}>
+                        <Icon className="size-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900">
+                          {a.paciente.nombre} {a.paciente.apellido}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${
+                          a.tipo === "dolor_alto" ? "text-red-600"
+                          : a.tipo === "sin_registro" ? "text-amber-600"
+                          : a.tipo === "sin_ejercicios" ? "text-sky-600"
+                          : "text-slate-500"
+                        }`}>
+                          {a.mensaje}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
